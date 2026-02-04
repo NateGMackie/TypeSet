@@ -37,6 +37,7 @@ export function createDocState({ htmlEditor, wysiwyg, statBytes, statWords }) {
 
 
   function updateStats() {
+  try {
     if (!statBytes || !statWords) return;
 
     const html = typeof cleanHTML === 'string' ? cleanHTML : coerceHtml(cleanHTML);
@@ -46,7 +47,11 @@ export function createDocState({ htmlEditor, wysiwyg, statBytes, statWords }) {
 
     statBytes.textContent = bytes.toLocaleString();
     statWords.textContent = words.toLocaleString();
+  } catch (err) {
+    console.warn('[docState] updateStats failed (non-fatal):', err);
   }
+}
+
 
   function getCleanHtml() {
     return typeof cleanHTML === 'string' ? cleanHTML : coerceHtml(cleanHTML);

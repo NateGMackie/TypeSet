@@ -39,8 +39,13 @@ tableCellHeader: 'w2h-table-cell-header',
     variable: 'variable',
   },
   onError(error) {
-    throw error;
-  },
+  // 8.5d: never hard-crash the session because of a Lexical internal error.
+  console.error('[lexical] editor error:', error);
+
+  // Optional: broadcast so main.js can show a UI banner later
+  window.dispatchEvent(new CustomEvent('w2h:editor-error', { detail: error }));
+},
+
   nodes: [
     HeadingNode,
     QuoteNode,

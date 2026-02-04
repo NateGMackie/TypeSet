@@ -28,14 +28,43 @@ export function initHtmlView({ elements, docState, loadHtmlIntoEditor }) {
     return el;
   }
 
-  function setStatus(message, kind = 'info') {
-    const el = getStatusEl();
-    el.textContent = message;
+  let lastAppliedHtml = docState.getCleanHtml() || '';
 
-    if (kind === 'error') el.style.color = 'crimson';
-    else if (kind === 'warn') el.style.color = 'darkgoldenrod';
-    else el.style.color = '';
+function snapshotLastApplied() {
+  lastAppliedHtml = docState.getCleanHtml() || '';
+}
+
+function revertToLastApplied() {
+  htmlEditor.value = lastAppliedHtml;
+  // Don’t load into editor automatically unless you want revert to be “apply” too.
+}
+
+  function setStatus(message, kind = 'info', { actionText, onAction } = {}) {
+  const el = getStatusEl();
+  el.innerHTML = ''; // clear previous
+
+  const msg = document.createElement('span');
+  msg.textContent = message;
+  el.appendChild(msg);
+
+  if (actionText && typeof onAction === 'function') {
+    const spacer = document.createTextNode(' ');
+    el.appendChild(spacer);
+
+    const a = document.createElement('button');
+    a.type = 'button';
+    a.textContent = actionText;
+    a.style.marginLeft = '8px';
+    a.style.fontSize = '12px';
+    a.addEventListener('click', onAction);
+    el.appendChild(a);
   }
+
+  el.style.color =
+    kind === 'error' ? 'crimson' :
+    kind === 'warn' ? 'darkgoldenrod' :
+    '';
+}
 
   function clearStatus() {
     const el = document.getElementById('htmlApplyStatus');
@@ -47,9 +76,12 @@ export function initHtmlView({ elements, docState, loadHtmlIntoEditor }) {
     const canonical = docState.getCleanHtml?.() || '';
     htmlEditor.value = prettyHtml(canonical);
 
+    snapshotLastApplied();
+
     dirty = false;
     baseRev = docState.getMeta?.().rev ?? baseRev;
     clearStatus();
+    
   }
 
   function hasPendingEdits() {
@@ -78,27 +110,39 @@ export function initHtmlView({ elements, docState, loadHtmlIntoEditor }) {
       htmlEditor.value = pretty;
       loadHtmlIntoEditor?.(pretty);
 
+      snapshotLastApplied();
+
       dirty = false;
       baseRev = docState.getMeta?.().rev ?? baseRev;
 
-      const removed = report?.removedTags ? Array.from(report.removedTags) : [];
-      const normalized = report?.normalized || [];
+      const removedTags = report?.removedTags ? Array.from(report.removedTags) : [];
+const removedAttrs = report?.removedAttrs ? Array.from(report.removedAttrs) : [];
+const normalized = Array.isArray(report?.normalized) ? report.normalized : [];
 
-      if (removed.length || normalized.length) {
-        const bits = [];
-        if (removed.length) bits.push(`Removed tags: ${removed.join(', ')}`);
-        if (normalized.length) bits.push(`Normalized: ${normalized.join(', ')}`);
-        setStatus(`Applied with changes. ${bits.join(' • ')}`, 'warn');
-      } else {
-        setStatus('Applied. No contract violations detected.', 'info');
-      }
+const changed =
+  !!report?.changed ||
+  removedTags.length > 0 ||
+  removedAttrs.length > 0 ||
+  normalized.length > 0;
+
+if (changed) {
+  const bits = [];
+  if (removedTags.length) bits.push(`Removed tags: ${removedTags.join(', ')}`);
+  if (removedAttrs.length) bits.push(`Removed attrs: ${removedAttrs.join(', ')}`);
+  if (normalized.length) bits.push(`Normalized: ${normalized.join(', ')}`);
+  setStatus(`Applied with changes. ${bits.join(' • ')}`, 'warn');
+} else {
+  setStatus('Applied. No contract violations detected.', 'info');
+}
+
     } catch (err) {
-      console.error('HTML Apply failed:', err);
-      setStatus(
-        `Could not apply HTML. Fix the markup and try again. (${err?.message || 'Unknown error'})`,
-        'error'
-      );
-    }
+  console.error('HTML Apply failed:', err);
+  setStatus(
+    `Could not apply HTML. Fix the markup and try again. (${err?.message || 'Unknown error'})`,
+    'error',
+    { actionText: 'Revert to last applied', onAction: revertToLastApplied }
+  );
+}
   });
 
   htmlEditor.addEventListener('input', () => {
