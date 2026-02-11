@@ -170,15 +170,17 @@ function dedupeIds(doc) {
   }
 
   function normalizeSpan(span) {
-    const cls = (span.getAttribute("class") || "")
-      .split(/\s+/)
-      .filter(Boolean)
-      .filter((t) => ALLOWED_SPAN_CLASSES.has(t));
+  const cls = (span.getAttribute("class") || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((t) => t.toLowerCase())
+    .filter((t) => ALLOWED_SPAN_CLASSES.has(t));
 
-    const attrs = [];
-    if (cls.length) attrs.push({ name: "class", value: cls[0] }); // exactly one token
-    setAttrsInAlphaOrder(span, attrs);
-  }
+  const attrs = [];
+  if (cls.length) attrs.push({ name: "class", value: cls.join(" ") }); // allow stacking
+  setAttrsInAlphaOrder(span, attrs);
+}
+
 
   function normalizeImg(img) {
     const src = img.getAttribute("src");
