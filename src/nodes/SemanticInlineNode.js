@@ -27,8 +27,13 @@ export class SemanticInlineNode extends ElementNode {
 
   // --- kinds helpers ---
   getKinds() {
-    return Array.from(this.__kinds);
-  }
+  const k = this.__kinds;
+  if (Array.isArray(k)) return k;
+  if (k instanceof Set) return Array.from(k);
+  if (typeof k === 'string') return [k];
+  return [];
+}
+
 
   hasKind(kind) {
     return this.__kinds.has(kind);

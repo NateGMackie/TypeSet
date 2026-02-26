@@ -132,31 +132,50 @@ return () => btn.removeEventListener('mousedown', handler);
 
     }
 
-        // NEW: inline formatting via InlineFormatBridgePlugin
     function hookInlineFormatButton(selector, bridgeMethodName) {
-      const btn = document.querySelector(selector);
-      if (!btn) return null;
+  const btn = document.querySelector(selector);
+  if (!btn) return null;
 
-      const handler = (event) => {
-        event.preventDefault();
-        editor.focus();
+  const handler = (event) => {
+    event.preventDefault();
+    editor.focus();
 
-        const bridge = window.w2hInlineFormatBridge;
-        if (!bridge || typeof bridge[bridgeMethodName] !== 'function') {
-          console.warn(
-            'InlineFormatBridgePlugin not ready or method missing:',
-            bridgeMethodName,
-          );
-          return;
-        }
-
-        bridge[bridgeMethodName]();
-      };
-
-      btn.addEventListener('mousedown', handler);
-return () => btn.removeEventListener('mousedown', handler);
-
+    const bridge = window.w2hInlineFormatBridge;
+    if (!bridge || typeof bridge[bridgeMethodName] !== 'function') {
+      console.warn(
+        'InlineFormatBridgePlugin not ready or method missing:',
+        bridgeMethodName,
+      );
+      return;
     }
+
+    bridge[bridgeMethodName]();
+  };
+
+  btn.addEventListener('mousedown', handler);
+  return () => btn.removeEventListener('mousedown', handler);
+}
+
+function hookRemoveFormatButton(selector) {
+  const btn = document.querySelector(selector);
+  if (!btn) return null;
+
+  const handler = (event) => {
+    event.preventDefault();
+    editor.focus();
+
+    const bridge = window.w2hInlineFormatBridge;
+    if (!bridge || typeof bridge.removeFormatting !== 'function') {
+      console.warn('InlineFormatBridgePlugin not ready or method missing: removeFormatting');
+      return;
+    }
+
+    bridge.removeFormatting();
+  };
+
+  btn.addEventListener('mousedown', handler);
+  return () => btn.removeEventListener('mousedown', handler);
+}
 
     const cleanups = [
       // Inline formatting
@@ -166,7 +185,8 @@ return () => btn.removeEventListener('mousedown', handler);
       hookButton('#toolsWysiwyg [data-action="strikeThrough"]', 'strikethrough'),
       hookButton('#toolsWysiwyg [data-action="subscript"]', 'subscript'),
       hookButton('#toolsWysiwyg [data-action="superscript"]', 'superscript'),
-
+      hookRemoveFormatButton('#toolsWysiwyg [data-action="removeFormat"]'),
+      
       // Links
       hookLinkButton('#toolsWysiwyg [data-action="link"]'),
       hookUnlinkButton('#toolsWysiwyg [data-action="unlink"]'),

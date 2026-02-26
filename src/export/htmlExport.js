@@ -169,6 +169,37 @@ function dedupeIds(doc) {
     setAttrsInAlphaOrder(pre, attrs);
   }
 
+  function trimBoundaryEmptyParagraphs(body) {
+  if (!body) return;
+
+  const isEmptyP = (el) => {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
+    if (el.tagName !== "P") return false;
+
+    const html = (el.innerHTML || "").trim().toLowerCase();
+    if (html === "" || html === "<br>") return true;
+
+    const text = (el.textContent || "").replace(/\u00A0/g, " ").trim();
+    const hasMeaningfulEl = Array.from(el.childNodes).some((n) => {
+      if (n.nodeType !== Node.ELEMENT_NODE) return false;
+      return n.tagName !== "BR";
+    });
+
+    return text === "" && !hasMeaningfulEl;
+  };
+
+  // Trim leading empties if we have other content
+  while (body.children.length > 1 && isEmptyP(body.firstElementChild)) {
+    body.removeChild(body.firstElementChild);
+  }
+
+  // Trim trailing empties if we have other content
+  while (body.children.length > 1 && isEmptyP(body.lastElementChild)) {
+    body.removeChild(body.lastElementChild);
+  }
+}
+
+
   function normalizeSpan(span) {
   const cls = (span.getAttribute("class") || "")
     .split(/\s+/)
@@ -439,7 +470,7 @@ if (tag === "span") {
 
   // sanitize all nodes in body
   Array.from(doc.body.childNodes).forEach(sanitizeNode);
-
+  trimBoundaryEmptyParagraphs(doc.body);
   dedupeIds(doc);
 
   // Post-pass: unwrap redundant spans (pure wrappers) using this doc (not global document)

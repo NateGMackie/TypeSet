@@ -1,4 +1,5 @@
 // src/views/html.js
+
 import { cleanHTML } from '../import/htmlImport.js';
 import { prettyHtml } from '../utils/prettyHtml.js';
 
@@ -28,16 +29,17 @@ export function initHtmlView({ elements, docState, loadHtmlIntoEditor }) {
     return el;
   }
 
-  let lastAppliedHtml = docState.getCleanHtml() || '';
+  
+  let lastAppliedPretty = prettyHtml(docState.getCleanHtml() || '');
 
 function snapshotLastApplied() {
-  lastAppliedHtml = docState.getCleanHtml() || '';
+  lastAppliedPretty = prettyHtml(docState.getCleanHtml() || '');
 }
 
 function revertToLastApplied() {
-  htmlEditor.value = lastAppliedHtml;
-  // Don’t load into editor automatically unless you want revert to be “apply” too.
+  htmlEditor.value = lastAppliedPretty;
 }
+
 
   function setStatus(message, kind = 'info', { actionText, onAction } = {}) {
   const el = getStatusEl();
@@ -100,17 +102,24 @@ function revertToLastApplied() {
     const input = (htmlEditor.value || '').trim();
 
     try {
-      const { html, report } = cleanHTML(input);
-      const pretty = prettyHtml(html);
+            const { html: canonical, report } = cleanHTML(input);
+      const pretty = prettyHtml(canonical);
 
-      // Commit canonical
-      docState.setCleanHtml(pretty, { from: 'html' });
+ console.log('[HTML Update] canonical (raw):', canonical);
+  console.log('[HTML Update] canonical (visible newlines):', canonical.replace(/\n/g, '\\n'));
+  console.log('[HTML Update] canonical has " </strong> ."?', /<\/strong>\s+\./i.test(canonical));
 
-      // Update buffer (what you see) and apply to editor
+      // ✅ Store canonical (no formatting whitespace)
+      docState.setCleanHtml(canonical, { from: 'html' });
+
+      // ✅ Show pretty in the HTML editor UI only
       htmlEditor.value = pretty;
-      loadHtmlIntoEditor?.(pretty);
+
+      // ✅ Import canonical into Lexical (prevents </strong>\n. => " .")
+      loadHtmlIntoEditor?.(canonical);
 
       snapshotLastApplied();
+
 
       dirty = false;
       baseRev = docState.getMeta?.().rev ?? baseRev;
@@ -144,6 +153,7 @@ if (changed) {
   );
 }
   });
+
 
   htmlEditor.addEventListener('input', () => {
     dirty = true;

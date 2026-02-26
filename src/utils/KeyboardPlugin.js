@@ -177,7 +177,7 @@ if (event.shiftKey && keyLower === 'k') {
 
   const api = window.w2hInlineFormatBridge;
   if (api && typeof api.wrapSelectionWithUserInput === 'function') {
-    api.wrapSelectionWithUserInput();
+    api.toggleUserInput()
     return true;
   }
 
@@ -192,7 +192,7 @@ if (event.shiftKey && keyLower === 'm') {
 
   const api = window.w2hInlineFormatBridge;
   if (api && typeof api.wrapSelectionWithVariable === 'function') {
-    api.wrapSelectionWithVariable();
+    api.toggleVariable()
     return true;
   }
 

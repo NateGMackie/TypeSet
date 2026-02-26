@@ -125,21 +125,94 @@ function normalizeInlineFormatting(doc) {
   });
 }
 
+function removeSpaceBetweenInlineAndPunctuation(doc) {
+  const inline = new Set(["STRONG", "EM", "U", "S", "SUB", "SUP", "SPAN", "A", "CODE"]);
+  const punct = /^[\s\u00A0]*[.,;:!?]/;
+
+  const isWhitespaceText = (n) =>
+    n &&
+    n.nodeType === Node.TEXT_NODE &&
+    (n.nodeValue || "").replace(/\u00A0/g, " ").trim() === "";
+
+  // 1) If a punctuation text node starts with whitespace, remove that whitespace
+  //    when the previous meaningful sibling is an inline element or a text token.
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  const texts = [];
+  while (walker.nextNode()) texts.push(walker.currentNode);
+
+  for (const t of texts) {
+    const v = t.nodeValue || "";
+    if (!punct.test(v)) continue;
+
+    // Find previous meaningful sibling (skip whitespace-only nodes)
+    let prev = t.previousSibling;
+    while (isWhitespaceText(prev)) prev = prev.previousSibling;
+
+    const prevIsInline =
+      prev?.nodeType === Node.ELEMENT_NODE && inline.has(prev.tagName);
+
+    const prevIsTextToken =
+      prev?.nodeType === Node.TEXT_NODE &&
+      (prev.nodeValue || "").replace(/\u00A0/g, " ").trim().length > 0 &&
+      !/[ \t\r\n\u00A0]$/.test(prev.nodeValue || "");
+
+    if (prevIsInline || prevIsTextToken) {
+      t.nodeValue = v.replace(/^[\s\u00A0]+(?=[.,;:!?])/, "");
+    }
+  }
+
+  // 2) If there is a whitespace-only node between inline and punctuation, delete it.
+  //    Example DOM after pretty:
+  //    <strong>world</strong> [ "\n  " ] [ "."
+  doc.querySelectorAll("strong,em,u,s,sub,sup,span,a,code").forEach((el) => {
+    let mid = el.nextSibling;
+
+    // remove one or more whitespace-only siblings
+    while (isWhitespaceText(mid)) {
+      const next = mid.nextSibling;
+      mid.remove();
+      mid = next;
+    }
+
+    // if next text begins with punctuation but still has leading whitespace, trim it
+    if (mid?.nodeType === Node.TEXT_NODE && punct.test(mid.nodeValue || "")) {
+      mid.nodeValue = (mid.nodeValue || "").replace(/^[\s\u00A0]+(?=[.,;:!?])/, "");
+    }
+  });
+}
+
 function normalizeInlineSpacing(doc) {
-  const inline = "strong,em,u,s,sub,sup,span,a";
+  const inline = "strong,em,u,s,sub,sup,span,a,code";
+
+  // Characters that should NOT have a space inserted before them
+  const noLeadingSpace = /^[\s\.\,\;\:\!\?\)\]\}]/;
+
   doc.querySelectorAll(inline).forEach((el) => {
-    // If the element ends with a space and next text starts immediately, move the space outside.
+    const first = el.firstChild;
     const last = el.lastChild;
     const next = el.nextSibling;
 
-    if (last?.nodeType === Node.TEXT_NODE && / $/.test(last.nodeValue || "")) {
-      if (next?.nodeType === Node.TEXT_NODE && /^\S/.test(next.nodeValue || "")) {
-        last.nodeValue = (last.nodeValue || "").replace(/ $/, "");
-        next.nodeValue = " " + next.nodeValue;
+    // ✅ Trim pretty-format whitespace INSIDE the inline tag
+    if (first?.nodeType === Node.TEXT_NODE) {
+      first.nodeValue = (first.nodeValue || "").replace(/^[\s\u00A0]+/, "");
+    }
+    if (last?.nodeType === Node.TEXT_NODE) {
+      last.nodeValue = (last.nodeValue || "").replace(/[\s\u00A0]+$/, "");
+    }
+
+    // ✅ If we removed trailing whitespace, we may still want a real space before the next word
+    // Only do it when the next text starts with a non-space AND is not punctuation.
+    if (next?.nodeType === Node.TEXT_NODE) {
+      const nextVal = next.nodeValue || "";
+      if (nextVal !== "" && /^\S/.test(nextVal) && !noLeadingSpace.test(nextVal)) {
+        // Ensure exactly one space between inline and word
+        next.nodeValue = " " + nextVal;
       }
     }
   });
 }
+
+
 
 function normalizeWordEscapes(html) {
   if (!html) return html;
@@ -166,6 +239,50 @@ function normalizeWordOnlineHeadings(doc) {
     const h = doc.createElement("h" + level);
     h.innerHTML = p.innerHTML;
     p.replaceWith(h);
+  });
+}
+
+function removeSpaceBeforePunctuation(doc) {
+  const inline = new Set(["STRONG","EM","U","S","SUB","SUP","SPAN","A","CODE"]);
+  const punctRe = /^[\s\u00A0]*([.,;:!?])/;
+
+  // Walk *text nodes* and fix ones that begin with whitespace + punctuation
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  for (const t of textNodes) {
+    const v = t.nodeValue || "";
+    const m = v.match(punctRe);
+    if (!m) continue;
+
+    // Previous sibling is an inline element OR a text node ending with a non-space
+    const prev = t.previousSibling;
+
+    const prevIsInlineEl =
+      prev?.nodeType === Node.ELEMENT_NODE && inline.has(prev.tagName);
+
+    const prevIsTextWithContent =
+      prev?.nodeType === Node.TEXT_NODE &&
+      (prev.nodeValue || "").replace(/\u00A0/g, " ").trim().length > 0 &&
+      !/[ \t\r\n\u00A0]$/.test(prev.nodeValue || "");
+
+    if (prevIsInlineEl || prevIsTextWithContent) {
+      // remove leading whitespace before punctuation
+      t.nodeValue = v.replace(/^[\s\u00A0]+(?=[.,;:!?])/, "");
+    }
+  }
+
+  // Also remove whitespace-only text nodes that sit between inline elements and punctuation text
+  doc.querySelectorAll("strong,em,u,s,sub,sup,span,a,code").forEach((el) => {
+    const next = el.nextSibling;
+    if (!next || next.nodeType !== Node.TEXT_NODE) return;
+
+    const nextVal = next.nodeValue || "";
+    // whitespace-only (or whitespace then punctuation) => remove leading whitespace
+    if (/^[\s\u00A0]+[.,;:!?]/.test(nextVal)) {
+      next.nodeValue = nextVal.replace(/^[\s\u00A0]+(?=[.,;:!?])/, "");
+    }
   });
 }
 
@@ -1799,6 +1916,10 @@ export function cleanHTML(inputHTML) {
 
   normalizeInlineFormatting(doc);
   normalizeInlineSpacing(doc);
+  removeSpaceBetweenInlineAndPunctuation(doc);
+
+  removeSpaceBeforePunctuation(doc);
+
   normalizeTables(doc);
   stripTableBorders(doc);
   unwrapParasInListItems(doc);
