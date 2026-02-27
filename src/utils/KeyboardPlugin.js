@@ -6,28 +6,41 @@ import {
   KEY_TAB_COMMAND,
   INDENT_CONTENT_COMMAND,
   OUTDENT_CONTENT_COMMAND,
-  KEY_MODIFIER_COMMAND,
+  KEY_DOWN_COMMAND,
+  FORMAT_TEXT_COMMAND,
   COMMAND_PRIORITY_LOW,
   $getSelection,
   $isRangeSelection,
   $isRootOrShadowRoot,
   $createParagraphNode,
 } from 'lexical';
-import { $isCalloutNode } from '../nodes/CalloutNode.js';
+
 import { $isListItemNode, $isListNode } from '@lexical/list';
 
+import { $isCalloutNode } from '../nodes/CalloutNode.js';
+
+/**
+ * Stage 8.6.1 — Inline keyboard shortcuts
+ * - Ctrl/Cmd+B → bold (existing)
+ * - Ctrl/Cmd+I → italic (existing)
+ * - Ctrl/Cmd+Shift+K → user input
+ * - Ctrl/Cmd+Shift+M → variable
+ *
+ * Rules:
+ * - Selection → wrap/toggle selection
+ * - Collapsed caret → insert empty inline wrapper and place caret inside
+ * - No auto-wrapping surrounding text
+ */
 export function KeyboardPlugin() {
   const [editor] = useLexicalComposerContext();
 
-      React.useEffect(() => {
+  React.useEffect(() => {
+
     // LOW priority: Enter → cleanup "two empty lis at end of list inside callout"
     const unregisterEnterCleanup = editor.registerCommand(
       KEY_ENTER_COMMAND,
       (event) => {
-        // May be null if dispatched programmatically
-        if (!event) {
-          return false;
-        }
+        if (!event) return false;
 
         // Only care about *plain* Enter (no modifiers)
         if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {
@@ -53,36 +66,21 @@ export function KeyboardPlugin() {
             node = node.getParent();
           }
 
-          if (!listItem) {
-            // Not in a list item → nothing to clean up
-            return;
-          }
+          if (!listItem) return;
 
           // Current list item must be empty
-          if (listItem.getTextContent().trim() !== '') {
-            return;
-          }
+          if (listItem.getTextContent().trim() !== '') return;
 
           const listNode = listItem.getParent();
-          if (!listNode || !$isListNode(listNode)) {
-            return;
-          }
+          if (!listNode || !$isListNode(listNode)) return;
 
           // Only care when we're at the *end* of the list
-          if (listItem.getNextSibling() !== null) {
-            return;
-          }
+          if (listItem.getNextSibling() !== null) return;
 
-          // Previous sibling must exist and be a list item
           const prevItem = listItem.getPreviousSibling();
-          if (!prevItem || !$isListItemNode(prevItem)) {
-            return;
-          }
+          if (!prevItem || !$isListItemNode(prevItem)) return;
 
-          // Previous item must also be empty
-          if (prevItem.getTextContent().trim() !== '') {
-            return;
-          }
+          if (prevItem.getTextContent().trim() !== '') return;
 
           // Ensure this list is inside a CalloutNode
           let ancestor = listNode.getParent();
@@ -96,22 +94,7 @@ export function KeyboardPlugin() {
             ancestor = ancestor.getParent();
           }
 
-          if (!inCallout) {
-            // Outside callouts, leave Lexical's default behavior alone
-            return;
-          }
-
-          console.log('[KeyboardPlugin] Enter cleanup fired', {
-            selectionText: selection.getTextContent(),
-            listItemKey: listItem.getKey(),
-          });
-
-          // At this point we have:
-          // <li>Item 1</li>
-          // <li>Item 2</li>
-          // <li></li>       ← prevItem
-          // <li></li>       ← listItem (caret here)
-          // at the end of a list inside a callout.
+          if (!inCallout) return;
 
           event.preventDefault();
 
@@ -129,7 +112,7 @@ export function KeyboardPlugin() {
 
         return handled;
       },
-      COMMAND_PRIORITY_LOW, // runs AFTER Lexical's own list handling
+      COMMAND_PRIORITY_LOW,
     );
 
     // LOW priority: Tab / Shift+Tab → delegate to Lexical indent/outdent
@@ -141,7 +124,6 @@ export function KeyboardPlugin() {
           return false;
         }
 
-        // We want Tab to control structure, not browser focus.
         event.preventDefault();
 
         if (event.shiftKey) {
@@ -150,96 +132,137 @@ export function KeyboardPlugin() {
           editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
         }
 
-        // Let Lexical's list/code/etc. nodes decide what to do with these commands.
         return true;
       },
       COMMAND_PRIORITY_LOW,
     );
 
-        // LOW priority: Ctrl+ArrowUp / Ctrl+ArrowDown → escape out of a callout
-    const unregisterCalloutEscape = editor.registerCommand(
-      KEY_MODIFIER_COMMAND,
-      (event) => {
-        // Only handle real keyboard events
-        if (!event) return false;
+    
+    // LOW priority: modifier shortcuts (inline formats + callout escape)
+const unregisterModifierShortcuts = editor.registerCommand(
+  KEY_DOWN_COMMAND,
+  (event) => {
+    if (!event) return false;
 
-        // We care about: Ctrl+ArrowUp / Ctrl+ArrowDown (no other modifiers)
-        if (!event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) {
-          return false;
+    const hasPrimaryMod = event.ctrlKey || event.metaKey;
+    if (!hasPrimaryMod || event.altKey) return false;
+
+    const keyLower = (event.key || '').toLowerCase();
+
+    // 1) Plain inline formatting: handle OUTSIDE editor.update
+    if (!event.shiftKey) {
+      if (keyLower === 'b') {
+        event.preventDefault();
+        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'bold');
+        return true;
+      }
+      if (keyLower === 'i') {
+        event.preventDefault();
+        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'italic');
+        return true;
+      }
+      if (keyLower === 'u') {
+        event.preventDefault();
+        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'underline');
+        return true;
+      }
+    }
+
+    // 2) Custom semantic inlines + callout escape: do INSIDE editor.update
+    let handled = false;
+
+// Ctrl/Cmd + Shift + K → user-input
+if (event.shiftKey && keyLower === 'k') {
+  event.preventDefault();
+
+  const api = window.w2hInlineFormatBridge;
+  if (api && typeof api.wrapSelectionWithUserInput === 'function') {
+    api.toggleUserInput()
+    return true;
+  }
+
+  console.warn('[KeyboardPlugin] InlineFormatBridge not available for user-input.');
+  return false;
+}
+
+
+// Ctrl/Cmd + Shift + M → variable
+if (event.shiftKey && keyLower === 'm') {
+  event.preventDefault();
+
+  const api = window.w2hInlineFormatBridge;
+  if (api && typeof api.wrapSelectionWithVariable === 'function') {
+    api.toggleVariable()
+    return true;
+  }
+
+  console.warn('[KeyboardPlugin] InlineFormatBridge not available for variable.');
+  return false;
+}
+
+
+    editor.update(() => {
+      
+
+
+      // --- Callout escape ---
+      if (event.shiftKey) return;
+
+      const isUp = event.key === 'ArrowUp';
+      const isDown = event.key === 'ArrowDown';
+      if (!isUp && !isDown) return;
+
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return;
+      if (!selection.isCollapsed()) return;
+
+      let node = selection.anchor.getNode();
+      let calloutNode = null;
+
+      while (node && !$isRootOrShadowRoot(node)) {
+        if ($isCalloutNode(node)) {
+          calloutNode = node;
+          break;
         }
+        node = node.getParent();
+      }
 
-        const isUp = event.key === 'ArrowUp';
-        const isDown = event.key === 'ArrowDown';
+      if (!calloutNode) return;
 
-        if (!isUp && !isDown) {
-          return false;
-        }
+      event.preventDefault();
 
-        let handled = false;
+      const targetSibling = isUp
+        ? calloutNode.getPreviousSibling()
+        : calloutNode.getNextSibling();
 
-        editor.update(() => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return;
-          if (!selection.isCollapsed()) return;
+      if (targetSibling) {
+        targetSibling.select();
+        handled = true;
+        return;
+      }
 
-          // Walk up from the caret to find an enclosing CalloutNode
-          let node = selection.anchor.getNode();
-          let calloutNode = null;
+      const paragraph = $createParagraphNode();
+      if (isUp) {
+        calloutNode.insertBefore(paragraph);
+      } else {
+        calloutNode.insertAfter(paragraph);
+      }
+      paragraph.select();
+      handled = true;
+    });
 
-          while (node && !$isRootOrShadowRoot(node)) {
-            if ($isCalloutNode(node)) {
-              calloutNode = node;
-              break;
-            }
-            node = node.getParent();
-          }
+    return handled;
+  },
+  COMMAND_PRIORITY_LOW,
+);
 
-          if (!calloutNode) {
-            // Not inside a callout → let Lexical/default behavior run
-            return;
-          }
 
-          const parent = calloutNode.getParent();
-          if (!parent) {
-            return;
-          }
-
-          const targetSibling = isUp
-            ? calloutNode.getPreviousSibling()
-            : calloutNode.getNextSibling();
-
-          event.preventDefault();
-
-          if (targetSibling) {
-            // Move caret into existing sibling block
-            targetSibling.select();
-            handled = true;
-            return;
-          }
-
-          // No sibling in that direction → create a new paragraph
-          const paragraph = $createParagraphNode();
-
-          if (isUp) {
-            calloutNode.insertBefore(paragraph);
-          } else {
-            calloutNode.insertAfter(paragraph);
-          }
-
-          paragraph.select();
-          handled = true;
-        });
-
-        return handled;
-      },
-      COMMAND_PRIORITY_LOW,
-    );
 
 
     return () => {
       unregisterEnterCleanup();
       unregisterTabIndent();
-      unregisterCalloutEscape();
+      unregisterModifierShortcuts();
     };
   }, [editor]);
 

@@ -19,37 +19,68 @@ export function initWordView({
 
   if (!wordInput) return;
 
+  function getWordStatusEl() {
+  let el = document.getElementById('wordStatus');
+  if (el) return el;
+
+  el = document.createElement('div');
+  el.id = 'wordStatus';
+  el.setAttribute('role', 'status');
+  el.style.marginTop = '8px';
+  el.style.fontSize = '12px';
+  el.style.opacity = '0.9';
+
+  // Put it near the Clean button area if possible
+  if (btnClean?.parentElement) btnClean.parentElement.appendChild(el);
+  else wordInput?.insertAdjacentElement('afterend', el);
+
+  return el;
+}
+
+function setWordStatus(message, kind = 'info') {
+  const el = getWordStatusEl();
+  el.textContent = message || '';
+  el.style.color =
+    kind === 'error' ? 'crimson' :
+    kind === 'warn' ? 'darkgoldenrod' :
+    '';
+}
+
   // Clean: run Word → Clean HTML pipeline, then push into state and go to WYSIWYG
-  btnClean?.addEventListener("click", () => {
-  const rawWordHtml = wordInput.innerHTML;
+  btnClean?.addEventListener('click', () => {
+  try {
+    const html = wordInput.innerHTML || '';
+    const { html: cleaned, report } = cleanHTML(html);
 
-  // 1) Scrub through contract
-  const { html } = cleanHTML(rawWordHtml);
+    docState.setCleanHtml(cleaned, { from: 'word' });
 
-  // 2) Store canonical clean HTML
-  docState.setCleanHtml(html, { from: "word" });
+    // Load into editor
+    loadHtmlIntoEditor?.(cleaned);
+    setActiveView?.('wysiwyg');
 
-  // 3) Keep HTML view textarea in sync (so switching views shows clean HTML)
-  if (htmlEditor) htmlEditor.value = html;
+    const removed = report?.removedTags ? Array.from(report.removedTags) : [];
+    if (removed.length) {
+      setWordStatus(`Cleaned. Removed tags: ${removed.join(', ')}`, 'warn');
+    } else {
+      setWordStatus('Cleaned successfully.', 'info');
+    }
+  } catch (err) {
+    console.error('[word] clean failed:', err);
 
-  // 4) Prep: load into editor + go edit
-  loadHtmlIntoEditor?.(html);
-  setActiveView("wysiwyg");
+    // 8.5d: keep user input intact; do not switch views
+    setWordStatus(
+      `Could not clean. Your content is still here. Fix the source or try again. (${err?.message || 'Unknown error'})`,
+      'error'
+    );
+  }
 });
+
 
   btnClearAll?.addEventListener("click", () => {
   // Word Reset is *not* "New document" — it just clears the Word paste area.
   wordInput.innerHTML = "";
   wordInput.focus?.();
 });
-  // Reset everything
-  // btnClearAll?.addEventListener("click", () => {
-    // wordInput.innerHTML = "";
-    // docState.setCleanHtml("", { from: "system" });
-    // if (htmlEditor) htmlEditor.value = "";
-    // if (wysiwyg) wysiwyg.innerHTML = "";
-    // docState.updateStats();
-  // });
 
   // Paste button: try HTML from clipboard, fallback to text
   btnPaste?.addEventListener("click", async () => {

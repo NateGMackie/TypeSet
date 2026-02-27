@@ -125,21 +125,94 @@ function normalizeInlineFormatting(doc) {
   });
 }
 
+function removeSpaceBetweenInlineAndPunctuation(doc) {
+  const inline = new Set(["STRONG", "EM", "U", "S", "SUB", "SUP", "SPAN", "A", "CODE"]);
+  const punct = /^[\s\u00A0]*[.,;:!?]/;
+
+  const isWhitespaceText = (n) =>
+    n &&
+    n.nodeType === Node.TEXT_NODE &&
+    (n.nodeValue || "").replace(/\u00A0/g, " ").trim() === "";
+
+  // 1) If a punctuation text node starts with whitespace, remove that whitespace
+  //    when the previous meaningful sibling is an inline element or a text token.
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  const texts = [];
+  while (walker.nextNode()) texts.push(walker.currentNode);
+
+  for (const t of texts) {
+    const v = t.nodeValue || "";
+    if (!punct.test(v)) continue;
+
+    // Find previous meaningful sibling (skip whitespace-only nodes)
+    let prev = t.previousSibling;
+    while (isWhitespaceText(prev)) prev = prev.previousSibling;
+
+    const prevIsInline =
+      prev?.nodeType === Node.ELEMENT_NODE && inline.has(prev.tagName);
+
+    const prevIsTextToken =
+      prev?.nodeType === Node.TEXT_NODE &&
+      (prev.nodeValue || "").replace(/\u00A0/g, " ").trim().length > 0 &&
+      !/[ \t\r\n\u00A0]$/.test(prev.nodeValue || "");
+
+    if (prevIsInline || prevIsTextToken) {
+      t.nodeValue = v.replace(/^[\s\u00A0]+(?=[.,;:!?])/, "");
+    }
+  }
+
+  // 2) If there is a whitespace-only node between inline and punctuation, delete it.
+  //    Example DOM after pretty:
+  //    <strong>world</strong> [ "\n  " ] [ "."
+  doc.querySelectorAll("strong,em,u,s,sub,sup,span,a,code").forEach((el) => {
+    let mid = el.nextSibling;
+
+    // remove one or more whitespace-only siblings
+    while (isWhitespaceText(mid)) {
+      const next = mid.nextSibling;
+      mid.remove();
+      mid = next;
+    }
+
+    // if next text begins with punctuation but still has leading whitespace, trim it
+    if (mid?.nodeType === Node.TEXT_NODE && punct.test(mid.nodeValue || "")) {
+      mid.nodeValue = (mid.nodeValue || "").replace(/^[\s\u00A0]+(?=[.,;:!?])/, "");
+    }
+  });
+}
+
 function normalizeInlineSpacing(doc) {
-  const inline = "strong,em,u,s,sub,sup,span,a";
+  const inline = "strong,em,u,s,sub,sup,span,a,code";
+
+  // Characters that should NOT have a space inserted before them
+  const noLeadingSpace = /^[\s\.\,\;\:\!\?\)\]\}]/;
+
   doc.querySelectorAll(inline).forEach((el) => {
-    // If the element ends with a space and next text starts immediately, move the space outside.
+    const first = el.firstChild;
     const last = el.lastChild;
     const next = el.nextSibling;
 
-    if (last?.nodeType === Node.TEXT_NODE && / $/.test(last.nodeValue || "")) {
-      if (next?.nodeType === Node.TEXT_NODE && /^\S/.test(next.nodeValue || "")) {
-        last.nodeValue = (last.nodeValue || "").replace(/ $/, "");
-        next.nodeValue = " " + next.nodeValue;
+    // ✅ Trim pretty-format whitespace INSIDE the inline tag
+    if (first?.nodeType === Node.TEXT_NODE) {
+      first.nodeValue = (first.nodeValue || "").replace(/^[\s\u00A0]+/, "");
+    }
+    if (last?.nodeType === Node.TEXT_NODE) {
+      last.nodeValue = (last.nodeValue || "").replace(/[\s\u00A0]+$/, "");
+    }
+
+    // ✅ If we removed trailing whitespace, we may still want a real space before the next word
+    // Only do it when the next text starts with a non-space AND is not punctuation.
+    if (next?.nodeType === Node.TEXT_NODE) {
+      const nextVal = next.nodeValue || "";
+      if (nextVal !== "" && /^\S/.test(nextVal) && !noLeadingSpace.test(nextVal)) {
+        // Ensure exactly one space between inline and word
+        next.nodeValue = " " + nextVal;
       }
     }
   });
 }
+
+
 
 function normalizeWordEscapes(html) {
   if (!html) return html;
@@ -166,6 +239,50 @@ function normalizeWordOnlineHeadings(doc) {
     const h = doc.createElement("h" + level);
     h.innerHTML = p.innerHTML;
     p.replaceWith(h);
+  });
+}
+
+function removeSpaceBeforePunctuation(doc) {
+  const inline = new Set(["STRONG","EM","U","S","SUB","SUP","SPAN","A","CODE"]);
+  const punctRe = /^[\s\u00A0]*([.,;:!?])/;
+
+  // Walk *text nodes* and fix ones that begin with whitespace + punctuation
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  for (const t of textNodes) {
+    const v = t.nodeValue || "";
+    const m = v.match(punctRe);
+    if (!m) continue;
+
+    // Previous sibling is an inline element OR a text node ending with a non-space
+    const prev = t.previousSibling;
+
+    const prevIsInlineEl =
+      prev?.nodeType === Node.ELEMENT_NODE && inline.has(prev.tagName);
+
+    const prevIsTextWithContent =
+      prev?.nodeType === Node.TEXT_NODE &&
+      (prev.nodeValue || "").replace(/\u00A0/g, " ").trim().length > 0 &&
+      !/[ \t\r\n\u00A0]$/.test(prev.nodeValue || "");
+
+    if (prevIsInlineEl || prevIsTextWithContent) {
+      // remove leading whitespace before punctuation
+      t.nodeValue = v.replace(/^[\s\u00A0]+(?=[.,;:!?])/, "");
+    }
+  }
+
+  // Also remove whitespace-only text nodes that sit between inline elements and punctuation text
+  doc.querySelectorAll("strong,em,u,s,sub,sup,span,a,code").forEach((el) => {
+    const next = el.nextSibling;
+    if (!next || next.nodeType !== Node.TEXT_NODE) return;
+
+    const nextVal = next.nodeValue || "";
+    // whitespace-only (or whitespace then punctuation) => remove leading whitespace
+    if (/^[\s\u00A0]+[.,;:!?]/.test(nextVal)) {
+      next.nodeValue = nextVal.replace(/^[\s\u00A0]+(?=[.,;:!?])/, "");
+    }
   });
 }
 
@@ -406,7 +523,7 @@ function normalizeWordSemanticSpans(doc) {
 
 // 3) Strip non-content attributes (classes, inline styles, data-*, etc.)
 //    but KEEP things that matter for content: href, src, alt, colspan, etc.
-function stripNonContentAttributes(doc) {
+function stripNonContentAttributes(doc, report) {
   const keep = new Set([
     "id",
     "href",
@@ -453,12 +570,19 @@ function stripNonContentAttributes(doc) {
     return allowedImgClasses.has(cls);
   };
 
-  doc.querySelectorAll("*").forEach((el) => {
+    doc.querySelectorAll("*").forEach((el) => {
     Array.from(el.attributes).forEach((attr) => {
       const name = attr.name.toLowerCase();
 
       if (!keep.has(name)) {
         el.removeAttribute(attr.name);
+
+        // ✅ report
+        if (report) {
+          report.removedAttrs.add(name);
+          report.changed = true;
+        }
+
         return;
       }
 
@@ -468,10 +592,19 @@ function stripNonContentAttributes(doc) {
           isAllowedSemanticSpanClass(el) ||
           isAllowedImgClass(el);
 
-        if (!ok) el.removeAttribute("class");
+        if (!ok) {
+          el.removeAttribute("class");
+
+          // ✅ report
+          if (report) {
+            report.removedAttrs.add("class");
+            report.changed = true;
+          }
+        }
       }
     });
   });
+
 }
 
 
@@ -759,35 +892,38 @@ function stripListMarkersDOM(p) {
 
     if (node.nodeType === Node.ELEMENT_NODE) {
       // Try to trim inside the first descendant text node
-      for (let c = node.firstChild; c; c = c.nextSibling) {
-        // ditch leading pure-whitespace text nodes as we go
-        if (
-          c.nodeType === Node.TEXT_NODE &&
-          /^\s*$/.test((c.nodeValue || "").replace(/\u00A0/g, " "))
-        ) {
-          const next = c.nextSibling;
-          node.removeChild(c);
-          c = next ? next.previousSibling : null;
-          continue;
-        }
-        if (trimFromNode(c)) {
-          // After trimming, drop any leading 7pt NBSP spacer span(s)
-          while (node.firstChild && node.firstChild.nodeType === Node.ELEMENT_NODE) {
-            const el = node.firstChild;
-            const st = (el.getAttribute("style") || "").toLowerCase();
-            if (
-              el.tagName === "SPAN" &&
-              /font-size:\s*7pt/.test(st) &&
-              /^\s*&nbsp;*\s*$/i.test(el.innerHTML)
-            ) {
-              node.removeChild(el);
-              continue;
-            }
-            break;
-          }
-          return true;
-        }
-      }
+      // Try to trim inside the first descendant text node
+let c = node.firstChild;
+while (c) {
+  // ditch leading pure-whitespace text nodes as we go
+  if (
+    c.nodeType === Node.TEXT_NODE &&
+    /^\s*$/.test((c.nodeValue || "").replace(/\u00A0/g, " "))
+  ) {
+    const next = c.nextSibling;   // capture before removal
+    node.removeChild(c);
+    c = next;                      // move forward safely
+    continue;
+  }
+
+  if (trimFromNode(c)) {
+    // After trimming, drop any leading 7pt NBSP spacer span(s)
+    while (node.firstChild && node.firstChild.nodeType === Node.ELEMENT_NODE) {
+      const el = node.firstChild;
+      const isSpacer =
+        el.tagName === "SPAN" &&
+        (el.style.fontSize === "7pt" || el.getAttribute("style")?.includes("font-size:7pt")) &&
+        el.textContent?.replace(/\u00A0/g, " ").trim() === "";
+
+      if (isSpacer) node.removeChild(el);
+      else break;
+    }
+    return true;
+  }
+
+  c = c.nextSibling;
+}
+
     }
     return false;
   }
@@ -1551,9 +1687,12 @@ function normalizeWordOnlinePasteCallouts(doc) {
 
 function unwrap(el) {
   const parent = el.parentNode;
+  if (!parent) return;
+
   while (el.firstChild) parent.insertBefore(el.firstChild, el);
   parent.removeChild(el);
 }
+
 
 function remove(el) {
   el.parentNode?.removeChild(el);
@@ -1562,40 +1701,161 @@ function remove(el) {
 function sanitizeTree(root, report) {
   if (!root) return;
 
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null);
+  const doc = root.ownerDocument;
+
+  const markChanged = () => {
+    if (report) report.changed = true;
+  };
+
+  const incRemovedNodes = () => {
+    if (report) report.removedNodes = (report.removedNodes || 0) + 1;
+  };
+
+  // -----------------------------
+  // Pass 1: sanitize ELEMENT nodes
+  // -----------------------------
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null);
   const toProcess = [];
 
-  // ✅ Start at the first element *inside* root (skip root itself)
+  // Start at first element inside root (skip root itself)
   let node = walker.nextNode();
   while (node) {
     toProcess.push(node);
     node = walker.nextNode();
   }
 
+  // Deepest → shallowest
   toProcess.reverse().forEach((el) => {
     const tag = el.tagName.toLowerCase();
 
+    // Remove disallowed tags by unwrapping (preserve children)
     if (!ALLOWED_TAGS.has(tag)) {
-      report.removedTags.add(tag);
+      if (report) report.removedTags.add(tag);
+      markChanged();
+
+      // If it's truly empty, remove it instead of unwrapping
+      if (!el.firstChild) {
+        el.remove();
+        incRemovedNodes();
+        return;
+      }
+
       unwrap(el);
       return;
     }
 
+    // div is only allowed for callouts
     if (tag === "div") {
       const className = (el.getAttribute("class") || "").trim();
       const isAllowedDiv =
-        className.startsWith("callout ") || className === "callout" || className.includes("callout");
+        className === "callout" ||
+        className.startsWith("callout ") ||
+        className.split(/\s+/).includes("callout");
 
       if (!isAllowedDiv) {
-        report.normalized.push("div->p");
-        const p = document.createElement("p");
+        if (report) report.normalized.push("div->p");
+        markChanged();
+
+        const p = doc.createElement("p");
         while (el.firstChild) p.appendChild(el.firstChild);
         el.replaceWith(p);
       }
     }
   });
-}
 
+  // ----------------------------------------------------
+  // Pass 2: make root Lexical-safe (no top-level text)
+  // ----------------------------------------------------
+  const isWhitespaceText = (n) =>
+    n && n.nodeType === Node.TEXT_NODE && (n.nodeValue || "").replace(/\u00A0/g, " ").trim() === "";
+
+  const isInlineOrText = (n) => {
+    if (!n) return false;
+    if (n.nodeType === Node.TEXT_NODE) return !isWhitespaceText(n);
+    if (n.nodeType !== Node.ELEMENT_NODE) return false;
+    const t = n.tagName.toLowerCase();
+    // Inline-ish tags that should not sit directly under <body> for Lexical import
+    return (
+      t === "strong" ||
+      t === "em" ||
+      t === "u" ||
+      t === "s" ||
+      t === "sub" ||
+      t === "sup" ||
+      t === "span" ||
+      t === "a" ||
+      t === "img" ||
+      t === "code" ||
+      t === "br"
+    );
+  };
+
+  const isBlock = (n) => {
+    if (!n || n.nodeType !== Node.ELEMENT_NODE) return false;
+    const t = n.tagName.toLowerCase();
+    return (
+      t === "p" ||
+      t === "hr" ||
+      /^h[1-6]$/.test(t) ||
+      t === "ul" ||
+      t === "ol" ||
+      t === "table" ||
+      (t === "div" && (n.getAttribute("class") || "").split(/\s+/).includes("callout"))
+    );
+  };
+
+  // Wrap runs of (text/inline) nodes into <p> blocks
+  const children = Array.from(root.childNodes);
+
+  let i = 0;
+  while (i < children.length) {
+    const cur = children[i];
+
+    // Drop whitespace-only text nodes at root
+    if (isWhitespaceText(cur)) {
+      cur.remove();
+      markChanged();
+      incRemovedNodes();
+      i++;
+      continue;
+    }
+
+    if (isInlineOrText(cur)) {
+      const p = doc.createElement("p");
+
+      // Move consecutive inline/text nodes into the paragraph
+      let j = i;
+      while (j < children.length && isInlineOrText(children[j])) {
+        p.appendChild(children[j]); // this MOVES the node
+        j++;
+      }
+
+      root.insertBefore(p, root.childNodes[i] || null);
+      markChanged();
+      // Do not advance by 1; we moved a chunk. Rebuild children snapshot.
+      i = j;
+      continue;
+    }
+
+    // If it’s already a block, leave it.
+    if (isBlock(cur)) {
+      i++;
+      continue;
+    }
+
+    // Any other element at root that slipped through: wrap it in <p>
+    if (cur.nodeType === Node.ELEMENT_NODE) {
+      const p = doc.createElement("p");
+      p.appendChild(cur); // move
+      root.insertBefore(p, root.childNodes[i] || null);
+      markChanged();
+      i++;
+      continue;
+    }
+
+    i++;
+  }
+}
 
 function serialize(doc) {
   if (!doc || !doc.body) return "";
@@ -1609,6 +1869,14 @@ export function cleanHTML(inputHTML) {
   const normalizedInput = normalizeWordEscapes(inputHTML || "");
   const doc = parseHTML(normalizedInput);
 
+  const report = {
+    removedTags: new Set(),
+    removedAttrs: new Set(),
+    removedNodes: 0,
+    changed: false,
+    normalized: [],
+  };
+
   // 1) Strip obviously unsafe/noisy stuff
   removeHtmlComments(doc);
   removeOfficeNamespaces(doc);
@@ -1619,21 +1887,20 @@ export function cleanHTML(inputHTML) {
   // 2) Word Online / structural cleanup
   flattenWordOnlineWrappers(doc);
   unwrapSingleRootDiv(doc);
-  normalizeWordOnlineHeadings(doc);   // <p role="heading"> → <h1>…<h6>
-
-  normalizeWordOnlineLists(doc);      // 👈 NEW: use data-listid + level info
+  normalizeWordOnlineHeadings(doc);
+  normalizeWordOnlineLists(doc);
 
   // 3) Headings and lists (classic Word HTML)
-  convertMsoHeadings(doc);            // legacy MsoHeading1 → <h1>
-  convertListsInDoc(doc);             // Word-style <p> bullets → <ul>/<ol><li>
+  convertMsoHeadings(doc);
+  convertListsInDoc(doc);
   mergeAdjacentLists(doc);
-  normalizeListStarts(doc);           // drop start="1" etc.
+  normalizeListStarts(doc);
 
   // 4) Word comments and inline styles
   removeWordComments(doc);
-    normalizeWordSemanticSpans(doc);
-  applyInlineStyleFormatting(doc);    // span[style] → <strong>/<em>/<u>/<s>/<sup>/<sub>
-  removeMsoStyling(doc);              // strip mso-* rules/classes
+  normalizeWordSemanticSpans(doc);
+  applyInlineStyleFormatting(doc);
+  removeMsoStyling(doc);
   normalizeWordOnlinePasteCallouts(doc);
   normalizeLinks(doc);
   ensureInDocAnchorTargets(doc);
@@ -1642,30 +1909,29 @@ export function cleanHTML(inputHTML) {
   flattenMhtWrapperDivs(doc);
 
   // 5) Generic normalization / attribute slimming
-  stripNonContentAttributes(doc);     // keep href/src/alt/colspan/... only
+  stripNonContentAttributes(doc, report); 
   dedupeIds(doc);
-  unwrapEmptySpans(doc);              // span with no attributes → unwrap
-  removeEmptyParagraphs(doc);         // nukes &nbsp;/whitespace-only <p>s
+  unwrapEmptySpans(doc);
+  removeEmptyParagraphs(doc);
 
-  normalizeInlineFormatting(doc);     // legacy <b>/<i> → <strong>/<em>
-  normalizeInlineSpacing(doc);        // fix spaces around inline tags
-  normalizeTables(doc);              // unwrap tbody/thead/tfoot; drop colgroup/col
+  normalizeInlineFormatting(doc);
+  normalizeInlineSpacing(doc);
+  removeSpaceBetweenInlineAndPunctuation(doc);
+
+  removeSpaceBeforePunctuation(doc);
+
+  normalizeTables(doc);
   stripTableBorders(doc);
-  unwrapParasInListItems(doc);        // <li><p>foo</p></li> → <li>foo</li>
+  unwrapParasInListItems(doc);
 
-// 6) Contract enforcement (allow-list)
-  // IMPORTANT: sanitize the same DOM we've been normalizing all along.
-  const report = { removedTags: new Set(), normalized: [] };
+  // 6) Contract enforcement (allow-list)
   sanitizeTree(doc.body, report);
 
-  // (Optional for later) expose report if you want UI messaging to be precise:
-  // doc.__sanitizeReport = report;
-
   return {
-  html: serialize(doc),
-  report,
-};
-
+    html: serialize(doc),
+    report,
+  };
 }
+
 
 
