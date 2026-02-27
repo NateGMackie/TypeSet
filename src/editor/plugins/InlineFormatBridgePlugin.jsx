@@ -10,7 +10,7 @@ import {
   $setSelection,
 } from 'lexical';
 
-import { $createSemanticInlineNode, SemanticInlineNode } from '../nodes/SemanticInlineNode.js';
+import { $createSemanticInlineNode, SemanticInlineNode } from '../../nodes/SemanticInlineNode.js';
 
 
 export default function InlineFormatBridgePlugin() {
@@ -397,11 +397,11 @@ function removeFormatting() {
 };
 
 
-    window.w2hInlineFormatBridge = api;
+    window.tsInlineFormatBridge = api;
 
     return () => {
-      if (window.w2hInlineFormatBridge === api) {
-        delete window.w2hInlineFormatBridge;
+      if (window.tsInlineFormatBridge === api) {
+        delete window.tsInlineFormatBridge;
       }
     };
   }, [editor]);

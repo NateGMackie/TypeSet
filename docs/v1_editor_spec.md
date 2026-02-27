@@ -1,4 +1,4 @@
-# Word-to-HTML WYSIWYG — V1 Specification
+# TypeSet — V1 Specification
 
 ## 1. Purpose
 

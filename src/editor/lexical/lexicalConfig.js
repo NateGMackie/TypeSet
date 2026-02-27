@@ -6,34 +6,34 @@ import { ListNode, ListItemNode, } from '@lexical/list';
 import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
 
 // custom nodes 
-import { CalloutNode } from '../nodes/CalloutNode.js';
-import { SemanticInlineNode } from '../nodes/SemanticInlineNode.js';
+import { CalloutNode } from '../../nodes/CalloutNode.js';
+import { SemanticInlineNode } from '../../nodes/SemanticInlineNode.js';
 
 
 // Basic theme classes. We can align these to your CSS later.
 export const editorConfig = {
-  namespace: 'w2h-editor',
+  namespace: 'typeset-editor',
   theme: {
     // Paragraphs will just inherit normal styles under #wysiwyg
-    paragraph: 'w2h-paragraph',
+    paragraph: 'ts-paragraph',
 
     text: {
-      bold: 'w2h-text-bold',
-      italic: 'w2h-text-italic',
-      underline: 'w2h-text-underline',
-      strikethrough: 'w2h-text-strike',
-      subscript: 'w2h-text-sub',
-      superscript: 'w2h-text-super',
-      code: 'w2h-text-code',
+      bold: 'ts-text-bold',
+      italic: 'ts-text-italic',
+      underline: 'ts-text-underline',
+      strikethrough: 'ts-text-strike',
+      subscript: 'ts-text-sub',
+      superscript: 'ts-text-super',
+      code: 'ts-text-code',
     },
 
-    table: 'w2h-table',
-tableRow: 'w2h-table-row',
-tableCell: 'w2h-table-cell',
-tableCellHeader: 'w2h-table-cell-header',
+    table: 'ts-table',
+tableRow: 'ts-table-row',
+tableCell: 'ts-table-cell',
+tableCellHeader: 'ts-table-cell-header',
 
 
-    link: 'w2h-link',
+    link: 'ts-link',
     userInput: 'user-input',
     variable: 'variable',
   },
@@ -42,7 +42,7 @@ tableCellHeader: 'w2h-table-cell-header',
   console.error('[lexical] editor error:', error);
 
   // Optional: broadcast so main.js can show a UI banner later
-  window.dispatchEvent(new CustomEvent('w2h:editor-error', { detail: error }));
+  window.dispatchEvent(new CustomEvent('ts:editor-error', { detail: error }));
 },
 
   nodes: [

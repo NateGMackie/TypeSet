@@ -80,34 +80,34 @@
 /* Bullet styles by nesting depth*/
 
 /* Level 1 */
-#wysiwygEditor .w2h-editor ul {
+#wysiwygEditor .ts-editor ul {
   list-style-type: disc;
 }
 
 /* Level 2 */
-#wysiwygEditor .w2h-editor ul ul {
+#wysiwygEditor .ts-editor ul ul {
   list-style-type: square;
 }
 
 /* Level 3 */
-#wysiwygEditor .w2h-editor ul ul ul {
+#wysiwygEditor .ts-editor ul ul ul {
   list-style-type: circle;
 }
 
 /* Number styles by nesting depth */
 
 /* Level 1 */
-#wysiwygEditor .w2h-editor ol {
+#wysiwygEditor .ts-editor ol {
   list-style-type: decimal;
 }
 
 /* Level 2 */
-#wysiwygEditor .w2h-editor ol ol {
+#wysiwygEditor .ts-editor ol ol {
   list-style-type: lower-alpha;   /* a, b, c */
 }
 
 /* Level 3 */
-#wysiwygEditor .w2h-editor ol ol ol {
+#wysiwygEditor .ts-editor ol ol ol {
   list-style-type: lower-roman;   /* i, ii, iii */
 }
 
@@ -119,34 +119,34 @@ font-weight: bold;
 } */ 
  
 /* Editor-friendly lists inside the Lexical editor */ 
-#wysiwygEditor .w2h-editor ul, 
-#wysiwygEditor .w2h-editor ol { 
+#wysiwygEditor .ts-editor ul, 
+#wysiwygEditor .ts-editor ol { 
   margin-left: 1.0rem; 
   padding-left: 0; 
   list-style-position: outside; /* better caret behavior */ 
 } 
 
-#wysiwygEditor .w2h-editor li { 
+#wysiwygEditor .ts-editor li { 
   margin-bottom: 0.375rem; 
   padding-left: 0; 
   text-indent: 0; /* no hanging indent in-editor */ 
 } 
 /* Keep bullets/numbers visible and styled */ 
-#wysiwygEditor .w2h-editor ul li::marker, 
-#wysiwygEditor .w2h-editor ol li::marker { 
+#wysiwygEditor .ts-editor ul li::marker, 
+#wysiwygEditor .ts-editor ol li::marker { 
   font-weight: bold; color: inherit; 
 }
 
 /* Hide the outer marker when a list item only exists to wrap a nested list
    This prevents "2.  1. Sub item" on the same line. */
-#wysiwygEditor .w2h-editor li:has(> ol),
-#wysiwygEditor .w2h-editor li:has(> ul) {
+#wysiwygEditor .ts-editor li:has(> ol),
+#wysiwygEditor .ts-editor li:has(> ul) {
   list-style-type: none;
 }
 
 /* Optional: add a small visual gap before nested lists */
-#wysiwygEditor .w2h-editor li > ol,
-#wysiwygEditor .w2h-editor li > ul {
+#wysiwygEditor .ts-editor li > ol,
+#wysiwygEditor .ts-editor li > ul {
   margin-top: 0.25rem;
 }
 
@@ -251,7 +251,7 @@ font-weight: bold;
 -------------------------------------*/
 
 #wysiwygEditor pre,
-#wysiwygEditor .w2h-editor code[spellcheck="false"] {
+#wysiwygEditor .ts-editor code[spellcheck="false"] {
   display: block;
   background: #111827;
   border-left: 4px solid #9ca3af;   /* gray variant of callout border */
@@ -320,33 +320,33 @@ font-weight: bold;
 
 /* Inline text formats for Lexical */
 
-#wysiwygEditor .w2h-text-bold {
+#wysiwygEditor .ts-text-bold {
   font-weight: 600;
 }
 
-#wysiwygEditor .w2h-text-italic {
+#wysiwygEditor .ts-text-italic {
   font-style: italic;
 }
 
-#wysiwygEditor .w2h-text-underline {
+#wysiwygEditor .ts-text-underline {
   text-decoration: underline;
 }
 
-#wysiwygEditor .w2h-text-strike {
+#wysiwygEditor .ts-text-strike {
   text-decoration: line-through;
 }
 
-.w2h-text-sub {
+.ts-text-sub {
   vertical-align: sub;
   font-size: 0.8em;
 }
 
-.w2h-text-super {
+.ts-text-super {
   vertical-align: super;
   font-size: 0.8em;
 }
 
-.w2h-text-code {
+.ts-text-code {
   font-family: ui-monospace, monospace;
   background-color: rgba(0, 0, 0, 0.05);
   padding: 0.1rem 0.2rem;

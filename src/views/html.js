@@ -1,7 +1,7 @@
 // src/views/html.js
 
-import { cleanHTML } from '../import/htmlImport.js';
-import { prettyHtml } from '../utils/prettyHtml.js';
+import { cleanHTML } from '../domain/html/htmlImport.js';
+import { prettyHtml } from '../domain/html/prettyHtml.js';
 
 export function initHtmlView({ elements, docState, loadHtmlIntoEditor }) {
   const { htmlEditor, btnFormatHtml } = elements;

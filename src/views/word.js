@@ -1,5 +1,5 @@
 // src/views/word.js
-import { cleanHTML } from "../import/htmlImport.js";
+import { cleanHTML } from "../domain/html/htmlImport.js";
 
 export function initWordView({
   elements,

@@ -16,7 +16,7 @@ import {
 import {
   $createCalloutNode,
   $isCalloutNode,
-} from '../nodes/CalloutNode.js';
+} from '../../nodes/CalloutNode.js';
 
 
 // Map the <select> value into our internal "kind"
