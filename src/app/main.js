@@ -1,12 +1,12 @@
 // src/main.js
-import { createDocState } from './import/docState.js';
-import { initWordView } from './views/word.js';
-import { initHtmlView } from './views/html.js';
-import { importHtmlToEditor } from './editor/importHtmlToEditor.js';
-import { mountWysiwygEditor } from './editor/mountWysiwyg.js';
-import { cleanHTML } from './import/htmlImport.js';
-import { makeDraftId, saveDraftBytes, openDraftFile } from "./draftStore.js";
-import { prettyHtml } from './utils/prettyHtml.js';
+import { createDocState } from '../domain/doc/docState.js';
+import { initWordView } from '../views/word.js';
+import { initHtmlView } from '../views/html.js';
+import { importHtmlToEditor } from '../editor/import/importHtmlToEditor.js';
+import { mountWysiwygEditor } from '../editor/mountWysiwyg.js';
+import { cleanHTML } from '../domain/html/htmlImport.js';
+import { makeDraftId, saveDraftBytes, openDraftFile } from "../app/draftStore.js";
+import { prettyHtml } from '../domain/html/prettyHtml.js';
 
 
 const $ = (id) => document.getElementById(id);

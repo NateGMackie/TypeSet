@@ -9,14 +9,14 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { ListPlugin } from '@lexical/react/LexicalListPlugin';
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
 
-import { exportHtmlFromEditor } from '../export/htmlExport.js';
+import { exportHtmlFromEditor } from '../domain/html/htmlExport.js';
 
-import { editorConfig } from './lexicalConfig.js';
-import InitialParagraphPlugin from './InitialParagraphPlugin';
-import ToolbarBridgePlugin from './ToolbarBridgePlugin.jsx';
-import BlockFormatBridgePlugin from './BlockFormatBridgePlugin.jsx';
-import CalloutBridgePlugin from './CalloutBridgePlugin.jsx';
-import InlineFormatBridgePlugin from './InlineFormatBridgePlugin.jsx';
+import { editorConfig } from './lexical/lexicalConfig.js';
+import InitialParagraphPlugin from './plugins/InitialParagraphPlugin';
+import ToolbarBridgePlugin from './plugins/ToolbarBridgePlugin.jsx';
+import BlockFormatBridgePlugin from './plugins/BlockFormatBridgePlugin.jsx';
+import CalloutBridgePlugin from './plugins/CalloutBridgePlugin.jsx';
+import InlineFormatBridgePlugin from './plugins/InlineFormatBridgePlugin.jsx';
 import { KeyboardPlugin } from '../utils/KeyboardPlugin.js';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 

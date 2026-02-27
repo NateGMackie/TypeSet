@@ -6,8 +6,8 @@ import { ListNode, ListItemNode, } from '@lexical/list';
 import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
 
 // custom nodes 
-import { CalloutNode } from '../nodes/CalloutNode.js';
-import { SemanticInlineNode } from '../nodes/SemanticInlineNode.js';
+import { CalloutNode } from '../../nodes/CalloutNode.js';
+import { SemanticInlineNode } from '../../nodes/SemanticInlineNode.js';
 
 
 // Basic theme classes. We can align these to your CSS later.

@@ -10,7 +10,7 @@ import {
   $setSelection,
 } from 'lexical';
 
-import { $createSemanticInlineNode, SemanticInlineNode } from '../nodes/SemanticInlineNode.js';
+import { $createSemanticInlineNode, SemanticInlineNode } from '../../nodes/SemanticInlineNode.js';
 
 
 export default function InlineFormatBridgePlugin() {
