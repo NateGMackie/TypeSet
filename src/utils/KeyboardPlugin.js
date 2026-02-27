@@ -175,7 +175,7 @@ const unregisterModifierShortcuts = editor.registerCommand(
 if (event.shiftKey && keyLower === 'k') {
   event.preventDefault();
 
-  const api = window.w2hInlineFormatBridge;
+  const api = window.tsInlineFormatBridge;
   if (api && typeof api.wrapSelectionWithUserInput === 'function') {
     api.toggleUserInput()
     return true;
@@ -190,7 +190,7 @@ if (event.shiftKey && keyLower === 'k') {
 if (event.shiftKey && keyLower === 'm') {
   event.preventDefault();
 
-  const api = window.w2hInlineFormatBridge;
+  const api = window.tsInlineFormatBridge;
   if (api && typeof api.wrapSelectionWithVariable === 'function') {
     api.toggleVariable()
     return true;

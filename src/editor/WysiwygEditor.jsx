@@ -23,7 +23,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 
 function Placeholder() {
   return (
-    <div className="w2h-placeholder text-stone-500 italic">
+    <div className="ts-placeholder text-stone-500 italic">
       Start writing...
     </div>
   );
@@ -47,10 +47,10 @@ export default function WysiwygEditor({ onHtmlChange, onEditorReady }) {
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className="w2h-editor-shell p-3 h-full">
+      <div className="ts-editor-shell p-3 h-full">
         <RichTextPlugin
           contentEditable={
-            <ContentEditable className="w2h-editor focus:outline-none" />
+            <ContentEditable className="ts-editor focus:outline-none" />
           }
           placeholder={<Placeholder />}
         />

@@ -140,7 +140,7 @@ return () => btn.removeEventListener('mousedown', handler);
     event.preventDefault();
     editor.focus();
 
-    const bridge = window.w2hInlineFormatBridge;
+    const bridge = window.tsInlineFormatBridge;
     if (!bridge || typeof bridge[bridgeMethodName] !== 'function') {
       console.warn(
         'InlineFormatBridgePlugin not ready or method missing:',
@@ -164,7 +164,7 @@ function hookRemoveFormatButton(selector) {
     event.preventDefault();
     editor.focus();
 
-    const bridge = window.w2hInlineFormatBridge;
+    const bridge = window.tsInlineFormatBridge;
     if (!bridge || typeof bridge.removeFormatting !== 'function') {
       console.warn('InlineFormatBridgePlugin not ready or method missing: removeFormatting');
       return;

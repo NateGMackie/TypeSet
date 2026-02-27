@@ -377,11 +377,11 @@ function updateDraftFooterName() {
   if (!currentDraftCreatedAt) currentDraftCreatedAt = nowIso;
 
   const draft = {
-    schema: "w2h-draft",
+    schema: "ts-draft",
     schemaVersion: 1,
     createdAt: currentDraftCreatedAt,
     updatedAt: nowIso,
-    app: { name: "w2h", version: "dev" },
+    app: { name: "ts", version: "dev" },
     state: {
       cleanHtml,
       lexical: lexicalState,
@@ -476,7 +476,7 @@ function updateDraftFooterName() {
 async function openDraftFromText(text, { handle = null, fileName = null } = {}) {
   const draft = JSON.parse(text);
 
-  if (draft?.schema !== "w2h-draft") throw new Error("Not a w2h draft file.");
+  if (draft?.schema !== "ts-draft") throw new Error("Not a ts draft file.");
   if (typeof draft?.schemaVersion !== "number") throw new Error("Draft schemaVersion missing.");
   if (draft.schemaVersion !== 1) throw new Error(`Unsupported draft schemaVersion: ${draft.schemaVersion}`);
 

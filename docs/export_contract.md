@@ -1,4 +1,4 @@
-# 📄 Word-to-HTML WYSIWYG
+# 📄 TypeSet
 # Export Contract (v1)
 
 This document defines the **expected HTML output** produced by the WYSIWYG editor after cleanup.
@@ -11,7 +11,7 @@ It serves as a stability contract: changes to the editor **must not break** thes
 The editor produces:
 
 - **Semantic HTML**
-- **Zero editor-only classes** (`w2h-*` is removed)
+- **Zero editor-only classes** (`ts-*` is removed)
 - **Clean, predictable markup** for block and inline structures
 - **Safe for ServiceNow** or any CSS-driven knowledge base
 - **Preserved content semantics** (e.g., callouts)
@@ -135,7 +135,7 @@ Examples:
 ```
 
 **Removal rules**
-- Any class containing `w2h-*` is removed
+- Any class containing `ts-*` is removed
 - Any class token not listed above is removed
 - If `class` becomes empty after cleanup, the attribute is removed
 
@@ -362,7 +362,7 @@ Rules:
 
 ## 7. Cleanup rules
 
-- Remove editor-only classes (`w2h-*`)
+- Remove editor-only classes (`ts-*`)
 - Normalize nested inline tags
 - Remove whitespace-preservation spans
 - Remove forbidden attributes

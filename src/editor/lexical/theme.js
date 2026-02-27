@@ -1,19 +1,19 @@
 // src/editor/theme.js
 
 export const editorTheme = {
-  paragraph: 'w2h-paragraph',
+  paragraph: 'ts-paragraph',
   heading: {
-    h1: 'w2h-heading-1',
-    h2: 'w2h-heading-2',
-    h3: 'w2h-heading-3',
+    h1: 'ts-heading-1',
+    h2: 'ts-heading-2',
+    h3: 'ts-heading-3',
   },
   list: {
-    ul: 'w2h-ul',
-    ol: 'w2h-ol',
-    listitem: 'w2h-li',
+    ul: 'ts-ul',
+    ol: 'ts-ol',
+    listitem: 'ts-li',
   },
-  link: 'w2h-link',
-  horizontalRule: 'w2h-hr',
+  link: 'ts-link',
+  horizontalRule: 'ts-hr',
 
   // Custom callout kinds
   callout: {

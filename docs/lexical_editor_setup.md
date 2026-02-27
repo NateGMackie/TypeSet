@@ -80,7 +80,7 @@ export const editorNodes = [
 ];
 
 export const editorConfig = {
-  namespace: 'w2h-editor',
+  namespace: 'ts-editor',
   theme: editorTheme,
   nodes: editorNodes,
   onError(error) {
