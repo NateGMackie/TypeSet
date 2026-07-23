@@ -17,6 +17,49 @@ export function cleanAndNormalizeExportHtml(rawHtml) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
 
+  // Convert Lexical style markers into contract semantic spans
+  // style="--ts-user-input:1" -> <span class="user-input">
+  // style="--ts-variable:1"  -> <span class="variable">
+    // Convert Lexical style markers into contract semantic spans
+doc.querySelectorAll("span[style]").forEach((span) => {
+  const style = span.getAttribute("style") || "";
+  const hasUserInput =
+    style.includes("--ts-user-input:1") || style.includes("--ts-user-input: 1");
+  const hasVariable =
+    style.includes("--ts-variable:1") || style.includes("--ts-variable: 1");
+
+  if (!hasUserInput && !hasVariable) return;
+
+  // Remove style markers from the lexical-produced span
+  span.removeAttribute("style");
+
+  // If only one marker, emit a single semantic span
+  if (hasUserInput && !hasVariable) {
+    span.setAttribute("class", "user-input");
+    return;
+  }
+  if (hasVariable && !hasUserInput) {
+    span.setAttribute("class", "variable");
+    return;
+  }
+
+  // BOTH markers: emit nested spans:
+  // <span class="user-input"><span class="variable">...</span></span>
+  const outer = doc.createElement("span");
+  outer.setAttribute("class", "user-input");
+
+  const inner = doc.createElement("span");
+  inner.setAttribute("class", "variable");
+
+  // Move all children of `span` into inner
+  while (span.firstChild) inner.appendChild(span.firstChild);
+
+  outer.appendChild(inner);
+
+  // Replace original span with outer
+  span.replaceWith(outer);
+});
+
   // --- policy ---
   const ALLOWED_TAGS = new Set([
     "h1",
@@ -197,6 +240,7 @@ function dedupeIds(doc) {
   while (body.children.length > 1 && isEmptyP(body.lastElementChild)) {
     body.removeChild(body.lastElementChild);
   }
+
 }
 
 

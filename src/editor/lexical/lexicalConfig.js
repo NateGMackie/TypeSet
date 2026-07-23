@@ -7,8 +7,6 @@ import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
 
 // custom nodes 
 import { CalloutNode } from '../../nodes/CalloutNode.js';
-import { SemanticInlineNode } from '../../nodes/SemanticInlineNode.js';
-
 
 // Basic theme classes. We can align these to your CSS later.
 export const editorConfig = {
@@ -34,8 +32,6 @@ tableCellHeader: 'ts-table-cell-header',
 
 
     link: 'ts-link',
-    userInput: 'user-input',
-    variable: 'variable',
   },
   onError(error) {
   // 8.5d: never hard-crash the session because of a Lexical internal error.
@@ -68,9 +64,5 @@ TableCellNode,
 
     // Custom blocks
     CalloutNode,
-
-    // User input
-    SemanticInlineNode,
-
   ],
 };

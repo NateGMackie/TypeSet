@@ -265,10 +265,14 @@ font-weight: bold;
 }
 
 /*-------------------------------------
-  User Input Formatting
+  User Input + Variable Formatting
+  - Export/clean HTML uses: <span class="user-input|variable">
+  - WYSIWYG uses style markers: <span style="--ts-user-input:1"> …
 -------------------------------------*/
 
-#wysiwygEditor .user-input {
+/* USER INPUT */
+#wysiwygEditor .user-input,
+#wysiwygEditor span[style*="--ts-user-input"] {
   font-family: Consolas, monospace;
   background-color: #374151;
   padding: 2px 4px;
@@ -276,17 +280,13 @@ font-weight: bold;
   color: #f9fafb;
 }
 
-/* Base variable styling (even if not nested) */
-#wysiwygEditor .variable {
+/* VARIABLE */
+#wysiwygEditor .variable,
+#wysiwygEditor span[style*="--ts-variable"] {
   font-style: italic;
   color: #e5e7eb;
 }
 
-/* Nested variable gets the same styling but keeps the cascade explicit */
-#wysiwygEditor .user-input .variable {
-  font-style: italic;
-  color: #e5e7eb;
-}
 
 /*-------------------------------------
   Screenshots
