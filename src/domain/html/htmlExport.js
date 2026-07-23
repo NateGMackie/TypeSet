@@ -243,6 +243,42 @@ function dedupeIds(doc) {
 
 }
 
+function normalizeNestedListStructure(doc) {
+  const listItems = Array.from(doc.querySelectorAll("li")).reverse();
+
+  listItems.forEach((listItem) => {
+    const meaningfulChildren = Array.from(listItem.childNodes).filter((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return (node.nodeValue || "").trim() !== "";
+      }
+
+      return node.nodeType === Node.ELEMENT_NODE;
+    });
+
+    if (meaningfulChildren.length === 0) return;
+
+    const containsOnlyLists = meaningfulChildren.every(
+      (node) =>
+        node.nodeType === Node.ELEMENT_NODE &&
+        (node.tagName.toLowerCase() === "ul" ||
+          node.tagName.toLowerCase() === "ol"),
+    );
+
+    if (!containsOnlyLists) return;
+
+    const previousItem = listItem.previousElementSibling;
+
+    if (!previousItem || previousItem.tagName.toLowerCase() !== "li") {
+      return;
+    }
+
+    meaningfulChildren.forEach((nestedList) => {
+      previousItem.appendChild(nestedList);
+    });
+
+    listItem.remove();
+  });
+}
 
   function normalizeSpan(span) {
   const cls = (span.getAttribute("class") || "")
@@ -513,9 +549,15 @@ if (tag === "span") {
   doc.querySelectorAll("style, script, meta, link").forEach((el) => el.remove());
 
   // sanitize all nodes in body
-  Array.from(doc.body.childNodes).forEach(sanitizeNode);
-  trimBoundaryEmptyParagraphs(doc.body);
-  dedupeIds(doc);
+Array.from(doc.body.childNodes).forEach(sanitizeNode);
+
+// Lexical represents an indented list as a list-only <li> following
+// the parent item. Attach that nested list to the preceding <li>
+// to produce conventional semantic HTML.
+normalizeNestedListStructure(doc);
+
+trimBoundaryEmptyParagraphs(doc.body);
+dedupeIds(doc);
 
   // Post-pass: unwrap redundant spans (pure wrappers) using this doc (not global document)
   let out = doc.body.innerHTML.trim();
