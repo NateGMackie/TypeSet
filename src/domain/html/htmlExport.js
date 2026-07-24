@@ -17,6 +17,49 @@ export function cleanAndNormalizeExportHtml(rawHtml) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
 
+  // Convert Lexical style markers into contract semantic spans
+  // style="--ts-user-input:1" -> <span class="user-input">
+  // style="--ts-variable:1"  -> <span class="variable">
+    // Convert Lexical style markers into contract semantic spans
+doc.querySelectorAll("span[style]").forEach((span) => {
+  const style = span.getAttribute("style") || "";
+  const hasUserInput =
+    style.includes("--ts-user-input:1") || style.includes("--ts-user-input: 1");
+  const hasVariable =
+    style.includes("--ts-variable:1") || style.includes("--ts-variable: 1");
+
+  if (!hasUserInput && !hasVariable) return;
+
+  // Remove style markers from the lexical-produced span
+  span.removeAttribute("style");
+
+  // If only one marker, emit a single semantic span
+  if (hasUserInput && !hasVariable) {
+    span.setAttribute("class", "user-input");
+    return;
+  }
+  if (hasVariable && !hasUserInput) {
+    span.setAttribute("class", "variable");
+    return;
+  }
+
+  // BOTH markers: emit nested spans:
+  // <span class="user-input"><span class="variable">...</span></span>
+  const outer = doc.createElement("span");
+  outer.setAttribute("class", "user-input");
+
+  const inner = doc.createElement("span");
+  inner.setAttribute("class", "variable");
+
+  // Move all children of `span` into inner
+  while (span.firstChild) inner.appendChild(span.firstChild);
+
+  outer.appendChild(inner);
+
+  // Replace original span with outer
+  span.replaceWith(outer);
+});
+
   // --- policy ---
   const ALLOWED_TAGS = new Set([
     "h1",
@@ -197,8 +240,45 @@ function dedupeIds(doc) {
   while (body.children.length > 1 && isEmptyP(body.lastElementChild)) {
     body.removeChild(body.lastElementChild);
   }
+
 }
 
+function normalizeNestedListStructure(doc) {
+  const listItems = Array.from(doc.querySelectorAll("li")).reverse();
+
+  listItems.forEach((listItem) => {
+    const meaningfulChildren = Array.from(listItem.childNodes).filter((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return (node.nodeValue || "").trim() !== "";
+      }
+
+      return node.nodeType === Node.ELEMENT_NODE;
+    });
+
+    if (meaningfulChildren.length === 0) return;
+
+    const containsOnlyLists = meaningfulChildren.every(
+      (node) =>
+        node.nodeType === Node.ELEMENT_NODE &&
+        (node.tagName.toLowerCase() === "ul" ||
+          node.tagName.toLowerCase() === "ol"),
+    );
+
+    if (!containsOnlyLists) return;
+
+    const previousItem = listItem.previousElementSibling;
+
+    if (!previousItem || previousItem.tagName.toLowerCase() !== "li") {
+      return;
+    }
+
+    meaningfulChildren.forEach((nestedList) => {
+      previousItem.appendChild(nestedList);
+    });
+
+    listItem.remove();
+  });
+}
 
   function normalizeSpan(span) {
   const cls = (span.getAttribute("class") || "")
@@ -469,9 +549,15 @@ if (tag === "span") {
   doc.querySelectorAll("style, script, meta, link").forEach((el) => el.remove());
 
   // sanitize all nodes in body
-  Array.from(doc.body.childNodes).forEach(sanitizeNode);
-  trimBoundaryEmptyParagraphs(doc.body);
-  dedupeIds(doc);
+Array.from(doc.body.childNodes).forEach(sanitizeNode);
+
+// Lexical represents an indented list as a list-only <li> following
+// the parent item. Attach that nested list to the preceding <li>
+// to produce conventional semantic HTML.
+normalizeNestedListStructure(doc);
+
+trimBoundaryEmptyParagraphs(doc.body);
+dedupeIds(doc);
 
   // Post-pass: unwrap redundant spans (pure wrappers) using this doc (not global document)
   let out = doc.body.innerHTML.trim();

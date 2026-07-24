@@ -101,6 +101,32 @@ function removeWordComments(doc) {
   });
 }
 
+function removeEmptyInlineElements(doc) {
+  const inlineTags = ["strong", "em", "u", "s", "sub", "sup", "span"];
+
+  inlineTags.forEach((tag) => {
+    doc.querySelectorAll(tag).forEach((el) => {
+      // Keep semantic spans even if empty (but they shouldn't be empty anyway)
+      if (
+        tag === "span" &&
+        el.hasAttribute("class") &&
+        /\b(user-input|variable)\b/.test(el.getAttribute("class"))
+      ) {
+        return;
+      }
+
+      // If no child elements and no non-whitespace text, remove it.
+      const hasElementChildren = el.children && el.children.length > 0;
+      const hasText = (el.textContent || "").trim().length > 0;
+
+      if (!hasElementChildren && !hasText) {
+        el.remove();
+      }
+    });
+  });
+}
+
+
 function convertMsoHeadings(doc) {
   doc.querySelectorAll('p[class^="MsoHeading"]').forEach((p) => {
     const m = /MsoHeading([1-6])/.exec(p.className || "");
@@ -504,9 +530,18 @@ function normalizeWordSemanticSpans(doc) {
       return;
     }
     if (clsLower === "userinputvariable") {
-      span.setAttribute("class", "variable");
-      return;
-    }
+  const outer = doc.createElement("span");
+  outer.setAttribute("class", "user-input");
+  const inner = doc.createElement("span");
+  inner.setAttribute("class", "variable");
+
+  while (span.firstChild) inner.appendChild(span.firstChild);
+  outer.appendChild(inner);
+
+  span.replaceWith(outer);
+  return;
+}
+
 
     // Word Web / Word Online often uses data-ccp-charstyle
     if (ccp.includes("userinputvariable") || ccp.includes("user input variable")) {
@@ -556,11 +591,27 @@ function stripNonContentAttributes(doc, report) {
     return !!kind && allowedCalloutKinds.has(kind);
   };
 
-  const isAllowedSemanticSpanClass = (el) => {
+    const normalizeSemanticSpanClass = (el) => {
     if (el.tagName.toLowerCase() !== "span") return false;
-    const cls = (el.getAttribute("class") || "").trim().toLowerCase();
-    return allowedSpanClasses.has(cls);
+
+    const tokens = (el.getAttribute("class") || "")
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    const kept = tokens.filter((t) => allowedSpanClasses.has(t));
+
+    if (kept.length === 0) {
+      el.removeAttribute("class");
+      return false;
+    }
+
+    // Keep only allowed semantic tokens; allow stacking
+    el.setAttribute("class", kept.join(" "));
+    return true;
   };
+
 
   const isAllowedImgClass = (el) => {
     if (el.tagName.toLowerCase() !== "img") return false;
@@ -586,36 +637,54 @@ function stripNonContentAttributes(doc, report) {
         return;
       }
 
-      if (name === "class") {
-        const ok =
-          isAllowedCalloutClass(el) ||
-          isAllowedSemanticSpanClass(el) ||
-          isAllowedImgClass(el);
+            if (name === "class") {
+        // Callouts and imgs are validated as-is
+        if (isAllowedCalloutClass(el) || isAllowedImgClass(el)) return;
 
-        if (!ok) {
-          el.removeAttribute("class");
+        // Semantic spans: normalize tokens (keeps allowed, drops others)
+        if (el.tagName.toLowerCase() === "span") {
+          const ok = normalizeSemanticSpanClass(el);
+          if (ok) return;
+        }
 
-          // ✅ report
-          if (report) {
-            report.removedAttrs.add("class");
-            report.changed = true;
-          }
+        // Otherwise, remove class
+        el.removeAttribute("class");
+
+        if (report) {
+          report.removedAttrs.add("class");
+          report.changed = true;
         }
       }
+
     });
   });
 
 }
 
+function isSemanticSpan(el) {
+  if (!el || el.tagName?.toLowerCase() !== 'span') return false;
+  return el.classList.contains('user-input') || el.classList.contains('variable');
+}
 
+function containsSemanticSpan(el) {
+  return !!el.querySelector?.('span.user-input, span.variable');
+}
 
 // 4) After attributes are stripped, a ton of <span> wrappers become useless.
 //    Unwrap <span> elements that have no attributes.
 function unwrapEmptySpans(doc) {
-  doc.querySelectorAll("span").forEach((span) => {
+  // Iterate a snapshot because we'll be moving nodes around
+  Array.from(doc.querySelectorAll("span")).forEach((span) => {
+    // ✅ Never unwrap semantic spans or spans that contain semantic spans
+    if (isSemanticSpan(span) || containsSemanticSpan(span)) {
+      return;
+    }
+
+    // Unwrap spans that have no attributes
     if (span.attributes.length === 0) {
       const parent = span.parentNode;
       if (!parent) return;
+
       while (span.firstChild) {
         parent.insertBefore(span.firstChild, span);
       }
@@ -623,6 +692,7 @@ function unwrapEmptySpans(doc) {
     }
   });
 }
+
 
 // 5) Kill empty paragraphs that just contain &nbsp; / whitespace.
 function removeEmptyParagraphs(doc) {
@@ -644,15 +714,16 @@ function removeEmptyParagraphs(doc) {
 function applyInlineStyleFormatting(doc) {
   doc.querySelectorAll("span[style]").forEach((span) => {
     // ✅ Skip semantic spans (keep user-input / variable intact)
-    const cls = (span.getAttribute("class") || "").toLowerCase().trim();
-    if (
-      cls === "user-input" ||
-      cls === "variable" ||
-      cls === "userinput" ||
-      cls === "userinputvariable"
-    ) {
-      return;
-    }
+        const clsTokens = (span.getAttribute("class") || "")
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    const isSemanticSpan =
+  clsTokens.includes("user-input") || clsTokens.includes("variable");
+
+if (isSemanticSpan) return;
+
 
     const style = (span.getAttribute("style") || "").toLowerCase();
     if (!style) return;
@@ -669,12 +740,17 @@ function applyInlineStyleFormatting(doc) {
     let node = span;
 
     const wrap = (tagName) => {
-      const wrapper = doc.createElement(tagName);
-      while (node.firstChild) wrapper.appendChild(node.firstChild);
-      node.parentNode.insertBefore(wrapper, node);
-      node.remove();
-      node = wrapper;
-    };
+  // If there's nothing to wrap, don't create an empty tag.
+  const hasElementChildren = node.children && node.children.length > 0;
+  const hasText = (node.textContent || "").trim().length > 0;
+  if (!hasElementChildren && !hasText) return;
+
+  const wrapper = doc.createElement(tagName);
+  while (node.firstChild) wrapper.appendChild(node.firstChild);
+  node.parentNode.insertBefore(wrapper, node);
+  node.remove();
+  node = wrapper;
+};
 
     if (isBold) wrap("strong");
     if (isItalic) wrap("em");
@@ -685,6 +761,32 @@ function applyInlineStyleFormatting(doc) {
   });
 }
 
+function collapseNestedInlineTags(doc) {
+  const tags = ["strong", "em", "u", "s", "sub", "sup"];
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+
+    for (const tag of tags) {
+      doc.querySelectorAll(tag).forEach((outer) => {
+        // Only collapse if outer has exactly one child element and no meaningful attrs
+        if (outer.attributes.length > 0) return;
+
+        const onlyChild = outer.firstElementChild;
+        if (!onlyChild) return;
+        if (outer.childNodes.length !== 1) return;
+
+        if (onlyChild.tagName.toLowerCase() !== tag) return;
+        if (onlyChild.attributes.length > 0) return;
+
+        // Replace <tag><tag>...</tag></tag> with single <tag>...</tag>
+        outer.replaceWith(onlyChild);
+        changed = true;
+      });
+    }
+  }
+}
 
 
 // Remove Word's Mso* classes and mso-* inline styles (run AFTER list/heading detection!)
@@ -1916,6 +2018,8 @@ export function cleanHTML(inputHTML) {
 
   normalizeInlineFormatting(doc);
   normalizeInlineSpacing(doc);
+  collapseNestedInlineTags(doc);
+  removeEmptyInlineElements(doc);
   removeSpaceBetweenInlineAndPunctuation(doc);
 
   removeSpaceBeforePunctuation(doc);
