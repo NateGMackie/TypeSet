@@ -1,4 +1,4 @@
-# **TypeSet consolidated roadmap**
+# **TypeSet roadmap**
 
 **Prepared:** July 27, 2026  
 **Updated:** July 27, 2026, following repository and documentation audit  
