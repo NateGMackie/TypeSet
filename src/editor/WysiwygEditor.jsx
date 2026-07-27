@@ -19,7 +19,7 @@ import CalloutBridgePlugin from './plugins/CalloutBridgePlugin.jsx';
 import InlineFormatBridgePlugin from './plugins/InlineFormatBridgePlugin.jsx';
 import { KeyboardPlugin } from '../utils/KeyboardPlugin.js';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-
+import HeadingFormatPlugin from "./plugins/HeadingFormatPlugin";
 
 function Placeholder() {
   return (
@@ -76,6 +76,7 @@ export default function WysiwygEditor({ onHtmlChange, onEditorReady }) {
 
           }}
         />
+        <HeadingFormatPlugin />
 
         <ToolbarBridgePlugin />
         <BlockFormatBridgePlugin />
