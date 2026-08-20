@@ -1,0 +1,58 @@
+{
+  "format": "typeset-document",
+  "schemaVersion": 1,
+  "document": {
+    "id": "72ae31d9-81c4-478e-994a-f9ea3e636270",
+    "title": "Example TypeSet document",
+    "createdAt": "2026-08-19T20:00:00.000Z",
+    "updatedAt": "2026-08-19T21:15:00.000Z"
+  },
+  "editorState": {
+    "root": {
+      "children": [
+        {
+          "children": [
+            {
+              "detail": 0,
+              "format": 0,
+              "mode": "normal",
+              "style": "",
+              "text": "Example TypeSet document",
+              "type": "text",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "tag": "h1",
+          "type": "heading",
+          "version": 1
+        },
+        {
+          "children": [
+            {
+              "detail": 0,
+              "format": 0,
+              "mode": "normal",
+              "style": "",
+              "text": "This document contains authored content.",
+              "type": "text",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "paragraph",
+          "version": 1
+        }
+      ],
+      "direction": null,
+      "format": "",
+      "indent": 0,
+      "type": "root",
+      "version": 1
+    }
+  }
+}
