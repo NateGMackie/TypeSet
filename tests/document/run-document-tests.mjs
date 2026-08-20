@@ -1,9 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { webcrypto } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
 const repoRoot = process.cwd();
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto;
+}
 const fixturesRoot = path.join(repoRoot, "tests/document/fixtures");
 
 const validatorPath = path.join(
@@ -12,7 +16,15 @@ const validatorPath = path.join(
 );
 
 const validatorModule = await import(pathToFileURL(validatorPath).href);
-const { parseAndValidateDocument } = validatorModule;
+const { parseAndValidateDocument, validateDocument } = validatorModule;
+
+const creatorPath = path.join(
+  repoRoot,
+  "src/document/createDocument.ts"
+);
+
+const creatorModule = await import(pathToFileURL(creatorPath).href);
+const { createDocument } = creatorModule;
 
 const cases = [
   {
@@ -96,6 +108,81 @@ for (const testCase of cases) {
   }
 
   console.log(`✅ ${testCase.file}`);
+}
+
+const createdDocument = createDocument();
+const secondCreatedDocument = createDocument();
+
+const creationChecks = [
+  {
+    name: "new document passes validation",
+    pass: validateDocument(createdDocument).valid,
+  },
+  {
+    name: "new document receives an ID",
+    pass:
+      typeof createdDocument.document.id === "string" &&
+      createdDocument.document.id.length > 0,
+  },
+  {
+    name: "new documents receive unique IDs",
+    pass:
+      createdDocument.document.id !==
+      secondCreatedDocument.document.id,
+  },
+  {
+    name: "createdAt is a valid timestamp",
+    pass: !Number.isNaN(
+      Date.parse(createdDocument.document.createdAt)
+    ),
+  },
+  {
+    name: "updatedAt is a valid timestamp",
+    pass: !Number.isNaN(
+      Date.parse(createdDocument.document.updatedAt)
+    ),
+  },
+  {
+    name: "new document starts with empty editor state",
+    pass:
+      createdDocument.editorState.root?.type === "root" &&
+      Array.isArray(createdDocument.editorState.root?.children) &&
+      createdDocument.editorState.root.children.length === 0,
+  },
+  {
+    name: "new document does not persist generated HTML",
+    pass:
+      !("html" in createdDocument) &&
+      !("cleanHtml" in createdDocument) &&
+      !("cleanHTML" in createdDocument),
+  },
+  {
+    name: "new document does not persist filename",
+    pass:
+      !("filename" in createdDocument) &&
+      !("currentDraftFilename" in createdDocument),
+  },
+  {
+    name: "new document does not persist active view",
+    pass: !("activeView" in createdDocument),
+  },
+  {
+    name: "new document contains no obsolete draft fields",
+    pass:
+      !("schema" in createdDocument) &&
+      !("state" in createdDocument) &&
+      !("currentDraftId" in createdDocument),
+  },
+];
+
+for (const check of creationChecks) {
+  if (!check.pass) {
+    failed++;
+    console.error(`❌ ${check.name}`);
+    continue;
+  }
+
+  console.log(`✅ ${check.name}`);
 }
 
 if (failed > 0) {
