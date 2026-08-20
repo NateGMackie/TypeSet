@@ -1,7 +1,7 @@
 # TypeSet Document Schema
 
 **Version:** 1.0\
-**Status:** Proposed
+**Status:** Current
 
 > **Note:** This is the first draft of the contract created during
 > Release 0 planning.

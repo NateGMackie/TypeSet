@@ -339,8 +339,7 @@ recorded - export-suite result recorded - Word-suite baseline recorded
   B1                      Define and approve      ✅ Complete
                           document schema         
 
-  B2                      Implement document      🟡 Validation complete;
-                          creation and validation document creation next
+  B2                      Implement document      🟢 Complete — document creation and validation implemented and verified
 
   B3                      Legacy draft handling   ✅ Decision complete:
                                                   reject obsolete `.drft`
