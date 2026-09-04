@@ -7,11 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "npm run test:document && npm run test:golden",
+    "test": "npm run test:document && npm run test:persistence && npm run test:golden",
     "typecheck": "tsc --noEmit",
     "test:golden": "node tests/run-sanitize-golden.mjs --mode=export",
     "test:golden:word": "node tests/run-sanitize-golden.mjs --mode=word",
-    "test:document": "tsx tests/document/run-document-tests.mjs"
+    "test:document": "tsx tests/document/run-document-tests.mjs",
+    "test:persistence": "tsx tests/persistence/run-persistence-tests.mjs"
   },
   "dependencies": {
     "@lexical/code": "^0.38.2",
