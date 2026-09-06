@@ -211,8 +211,8 @@ and risk rather than excitement.
 ## **2.1 Release 0 --- Establish the verified architectural baseline**
 
 **Priority:** Immediate architectural prerequisite\
-**Status:** 🟡 Release 0 foundation underway; repository baseline and
-document-validation foundation complete\
+**Status:** 🟡 Release 0 foundation underway; repository baseline,
+document foundation, and persistence boundary complete
 **Outcome:** The repository, document model, contracts, and tests agree
 before structural editor changes begin.
 
@@ -244,14 +244,15 @@ before structural editor changes begin.
 -   ✅ Remove tracked dependencies while retaining `package-lock.json`.\
 -   ✅ Establish clean `npm ci`, type-check, test, and build execution
     in CI.\
--   ✅ Add one standard `npm test` command that runs document and export
-    golden suites.\
+-   ✅ Add one standard npm test command that runs document, persistence,
+and export golden suites.\
 -   ✅ Establish incremental TypeScript with strict type checking and a
     CI type-check gate.\
 -   🟡 Implement new document and boundary modules in TypeScript.
-    `documentTypes.ts` and `validateDocument.ts` are in place; document
-    creation is next, followed by persistence. Legacy draft migration is
-    not required.\
+documentTypes.ts, validateDocument.ts, createDocument.ts, and the
+document persistence serialization/parsing boundary are in place.
+Save/Open file-access integration is next. Legacy draft migration is
+not required.\
 -   ⬜ Record the seven Word-suite failures as explicit baseline
     defects, then fix them deliberately.\
 -   ⬜ Add initial Lexical import/export, round-trip, draft, and
@@ -261,9 +262,9 @@ before structural editor changes begin.
 -   ⬜ Create a structural regression matrix covering import, editing,
     export, Apply, draft restore, and view switching.\
 -   🟡 Reorganize tests around architectural boundaries instead of the
-    sanitizer. `tests/document/`, `tests/import/html/`,
-    `tests/import/word/`, and `tests/export/html/` are established;
-    editor, persistence, and integration coverage remain:
+sanitizer. tests/document/, tests/persistence/,
+tests/import/html/, tests/import/word/, and tests/export/html/
+are established; editor and integration coverage remain:
     -   `tests/document/`\
     -   `tests/editor/`\
     -   `tests/import/word/`\
@@ -333,30 +334,15 @@ recorded - export-suite result recorded - Word-suite baseline recorded
 
 ## **Stage 2.1.B plan**
 
-  -----------------------------------------------------------------------
-  Unit                    Purpose                 Status
-  ----------------------- ----------------------- -----------------------
-  B1                      Define and approve      ✅ Complete
-                          document schema         
-
-  B2                      Implement document      🟢 Complete — document creation and validation implemented and verified
-
-  B3                      Legacy draft handling   ✅ Decision complete:
-                                                  reject obsolete `.drft`
-                                                  formats; no migration
-
-  B4                      Implement save/open     ⬜ Not started
-                          through the new         
-                          document boundary       
-
-  B5                      Add recovery behavior   ⬜ Not started
-                          for supported TypeSet   
-                          documents               
-
-  B6                      Add document and        🟡 Initial document
-                          persistence tests       validation fixtures
-                                                  complete; persistence
-                                                  coverage remains
+  | Unit | Purpose | Status | 
+  |---|---|---| 
+  | B1 | Define and approve document schema | ✅ Complete | 
+  | B2 | Implement document creation and validation | 🟢 Complete — document creation and validation implemented and verified | 
+  | B3 | Legacy draft handling | ✅ Decision complete — reject obsolete `.drft` formats; no migration | 
+  | B4 | Implement save/open through the new document boundary | 🟡 Persistence serialization/parsing boundary complete; browser file access and Save/Open integration next | 
+  | B5 | Add recovery behavior for supported TypeSet documents | ⬜ Not started | 
+  | B6 | Add document and persistence tests | ✅ Complete — document validation, creation, and persistence round-trip coverage implemented and verified |
+  
   -----------------------------------------------------------------------
 
 ## **2.2 Fix Lexical-to-HTML export**
