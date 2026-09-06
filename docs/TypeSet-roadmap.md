@@ -334,14 +334,14 @@ recorded - export-suite result recorded - Word-suite baseline recorded
 
 ## **Stage 2.1.B plan**
 
-  | Unit | Purpose | Status | 
-  |---|---|---| 
-  | B1 | Define and approve document schema | ✅ Complete | 
-  | B2 | Implement document creation and validation | 🟢 Complete — document creation and validation implemented and verified | 
-  | B3 | Legacy draft handling | ✅ Decision complete — reject obsolete `.drft` formats; no migration | 
-  | B4 | Implement save/open through the new document boundary | ✅ Complete — `.typeset` Save, Save As, and Open operate through the validated document and browser file-access boundaries | 
-  | B5 | Add recovery behavior for supported TypeSet documents | ⬜ Not started | 
-  | B6 | Add document and persistence tests | ✅ Complete — document validation, creation, and persistence round-trip coverage implemented and verified |
+  | Unit | Purpose | Status |
+|---|---|---|
+| B1 | Define and approve document schema | ✅ Complete |
+| B2 | Implement document creation and validation | 🟢 Complete — document creation and validation implemented and verified |
+| B3 | Legacy draft handling | ✅ Decision complete — reject obsolete `.drft` formats; no migration |
+| B4 | Implement save/open through the new document boundary | ✅ Complete — `.typeset` Save, Save As, and Open operate through the validated document and browser file-access boundaries |
+| B5 | Add recovery behavior for supported TypeSet documents | ⬜ Not started |
+| B6 | Add document and persistence tests | ✅ Complete — document validation, creation, and persistence round-trip coverage implemented and verified |
   
   -----------------------------------------------------------------------
 
@@ -1150,17 +1150,14 @@ immediately.
 Move these when Release 0 begins and verify imports/tests in the same
 commit:
 
-  ----------------------------------------------------------------------------
-  | Current location | Intended location |
-  | --- | --- | 
-  | `src/nodes/*` | `src/editor/nodes/*` |
-  | `src/utils/KeyboardPlugin.js` | `src/editor/plugins/KeyboardPlugin.js` |
-  | `src/app/draftStore.js` | Removed — superseded by `src/persistence/browserDocumentFile.ts` |
-  | `src/domain/markdown/markdown.js` | `src/import/markdown/markdown.js` |
-  | `tests/sanitize/fixtures/` | `tests/export/html/fixtures/` --- ✅ moved |
-  | `tests/sanitize/fixtures_word/` | `tests/import/word/fixtures/` --- ✅ moved |
-
-  ----------------------------------------------------------------------------
+| Current location | Intended location |
+|---|---|
+| `src/nodes/*` | `src/editor/nodes/*` |
+| `src/utils/KeyboardPlugin.js` | `src/editor/plugins/KeyboardPlugin.js` |
+| `src/app/draftStore.js` | Removed — superseded by `src/persistence/browserDocumentFile.ts` |
+| `src/domain/markdown/markdown.js` | `src/import/markdown/markdown.js` |
+| `tests/sanitize/fixtures/` | `tests/export/html/fixtures/` — ✅ moved |
+| `tests/sanitize/fixtures_word/` | `tests/import/word/fixtures/` — ✅ moved |
 
 ## **9A.3 Architecture-led moves**
 
@@ -1730,19 +1727,6 @@ The remaining recovery decisions include:
 1.  What event or interval creates a recovery snapshot?\
 2.  Where are recovery snapshots stored, and how long are they retained?\
 3.  When should TypeSet offer, replace, or discard recovery data?
-4.  When and where is canonical HTML generated and fully validated?\
-5.  How are existing dual-state `.drft` files migrated safely?\
-6.  Which initial integration tests protect the migration?\
-7.  What repository cleanup and CI changes make the baseline
-    reproducible?\
-8.  What strict TypeScript configuration and JavaScript-interoperation
-    rules support incremental migration?\
-9.  Which new Release 0 modules must be TypeScript from their first
-    implementation?\
-10. Which browsers, operating systems, and capability fallbacks are
-    initially supported?\
-11. What accessibility, editor-behavior, content-safety, performance,
-    and versioning checks belong in the baseline?
 
 After Release 0 is implemented and verified, begin **Release 1 --- Lists
 and headings** as the first structural content-model release.
