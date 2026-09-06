@@ -340,7 +340,7 @@ recorded - export-suite result recorded - Word-suite baseline recorded
 | B2 | Implement document creation and validation | 🟢 Complete — document creation and validation implemented and verified |
 | B3 | Legacy draft handling | ✅ Decision complete — reject obsolete `.drft` formats; no migration |
 | B4 | Implement save/open through the new document boundary | ✅ Complete — `.typeset` Save, Save As, and Open operate through the validated document and browser file-access boundaries |
-| B5 | Add recovery behavior for supported TypeSet documents | ⬜ Not started |
+| B5 | Add recovery behavior for supported TypeSet documents | 🟡 Recovery contract approved; implementation next |
 | B6 | Add document and persistence tests | ✅ Complete — document validation, creation, and persistence round-trip coverage implemented and verified |
   
   -----------------------------------------------------------------------
@@ -1719,14 +1719,13 @@ contract, document creation and validation, persistence boundary, browser
 file access, and Save/Open integration are established and verified.
 Stage 2.1.B units B1–B4 and B6 are complete.
 
-The next bounded task is B5: define recovery behavior for supported
-`.typeset` documents before implementing it.
+The B5 recovery contract is approved. Release 0 will retain one latest
+browser-local recovery snapshot, capture it after a two-second debounce,
+offer Restore or Discard at startup, and protect unsaved work during New
+and Open transitions.
 
-The remaining recovery decisions include:
-
-1.  What event or interval creates a recovery snapshot?\
-2.  Where are recovery snapshots stored, and how long are they retained?\
-3.  When should TypeSet offer, replace, or discard recovery data?
+The next bounded task is to implement the browser recovery-storage
+boundary without connecting it to the editor.
 
 After Release 0 is implemented and verified, begin **Release 1 --- Lists
 and headings** as the first structural content-model release.

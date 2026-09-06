@@ -224,17 +224,17 @@ Once recovery is no longer needed, temporary recovery data may be discarded.
 
 # **Recovery Retention**
 
-Recovery information should be retained using a hybrid strategy.
+Release 0 retains one latest recovery snapshot in browser-local storage.
 
-Examples include:
+The snapshot remains available until:
 
-* recent checkpoints  
-* editing sessions  
-* editing days
+* the document is saved successfully
+* the author explicitly discards recovery
+* the author confirms a destructive New or Open transition
 
-This balances reliable recovery with reasonable storage requirements.
+Multiple checkpoints, session history, editing-day retention, and revision history are deferred.
 
-Retention policies may evolve as the application matures.
+The detailed Release 0 behavior is defined in `docs/contracts/recovery.md`.
 
 ---
 
