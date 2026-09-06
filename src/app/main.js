@@ -5,7 +5,9 @@ import { initHtmlView } from '../views/html.js';
 import { importHtmlToEditor } from '../editor/import/importHtmlToEditor.js';
 import { mountWysiwygEditor } from '../editor/mountWysiwyg.js';
 import { cleanHTML } from '../domain/html/htmlImport.js';
-import { makeDraftId, saveDraftBytes, openDraftFile } from "../app/draftStore.js";
+import { makeDraftId, openDraftFile } from '../app/draftStore.js';
+import { serializeDocument } from '../persistence/documentPersistence.ts';
+import { saveDocumentFile } from '../persistence/browserDocumentFile.ts';
 import { prettyHtml } from '../domain/html/prettyHtml.js';
 import { createDocument } from '../document/createDocument.ts';
 
@@ -118,10 +120,11 @@ let currentDraftHandle = null;
 function updateDraftFooterName() {
   if (!statDraftName) return;
 
-  // Prefer current session filename; fallback to a friendly label
-  const name = (currentDraftFilename && String(currentDraftFilename).trim())
-    ? currentDraftFilename
-    : 'Untitled';
+  const name =
+    currentDocumentFilename &&
+    String(currentDocumentFilename).trim()
+      ? currentDocumentFilename
+      : 'Untitled';
 
   statDraftName.textContent = name;
 }
@@ -249,9 +252,9 @@ function updateDraftFooterName() {
     return slugifyFilename(title || htmlToText(html) || 'blank');
   }
 
-    function getInitialDraftFilename() {
-    return `${getDocBaseName()}.drft`;
-  }
+    function getInitialDocumentFilename() {
+  return `${getDocBaseName()}.typeset`;
+}
 
 
   // ============================================================
@@ -358,80 +361,73 @@ function updateDraftFooterName() {
     });
   }
 
-    async function saveDraftFile({ forceSaveAs = false } = {}) {
-  const cleanHtml = docState.getCleanHtml() || "";
-
-  let lexicalState = null;
-  try {
-    if (lexicalEditor) {
-      lexicalState = lexicalEditor.getEditorState().toJSON();
-    }
-  } catch (e) {
-    console.warn("Draft save: could not serialize Lexical state:", e);
+    async function saveDocument({ forceSaveAs = false } = {}) {
+  if (!lexicalEditor) {
+    alert('The document editor is not ready yet.');
+    return;
   }
 
-  // Stable identity (Stage 8.5a)
-  if (!currentDraftId) currentDraftId = makeDraftId();
+  let editorState;
 
-  // First-save filename
-  if (!currentDraftFilename) currentDraftFilename = getInitialDraftFilename();
+  try {
+    editorState = lexicalEditor.getEditorState().toJSON();
+  } catch (error) {
+    console.error('Document save could not serialize the editor state:', error);
+    alert('TypeSet could not prepare this document for saving.');
+    return;
+  }
 
-  updateDraftFooterName();
+  const cleanHtml = docState.getCleanHtml() || '';
+  const now = new Date().toISOString();
 
-  const nowIso = new Date().toISOString();
-  if (!currentDraftCreatedAt) currentDraftCreatedAt = nowIso;
-
-  const draft = {
-    schema: "ts-draft",
-    schemaVersion: 1,
-    createdAt: currentDraftCreatedAt,
-    updatedAt: nowIso,
-    app: { name: "ts", version: "dev" },
-    state: {
-      cleanHtml,
-      lexical: lexicalState,
+  currentDocument = {
+    ...currentDocument,
+    document: {
+      ...currentDocument.document,
+      title: extractTitleFromHtml(cleanHtml),
+      updatedAt: now,
     },
-    meta: {
-      id: currentDraftId, // ✅ stable doc identity
-      activeView: activeView || "wysiwyg",
-      filename: currentDraftFilename, // ✅ preferred name
-      title: extractTitleFromHtml(cleanHtml) || getDocBaseName(),
-    },
+    editorState,
   };
 
-  const bytes = JSON.stringify(draft, null, 2);
+  if (!currentDocumentFilename) {
+    currentDocumentFilename = getInitialDocumentFilename();
+  }
 
-  // If user wants Save As, drop the existing handle so picker appears
-  const handleToUse = forceSaveAs ? null : currentDraftHandle;
+  const text = serializeDocument(currentDocument);
+  const handleToUse = forceSaveAs ? null : currentDocumentHandle;
 
-  // Try real overwrite via FS Access API
   try {
-    const result = await saveDraftBytes({
-      bytes,
-      suggestedName: currentDraftFilename,
+    const result = await saveDocumentFile({
+      text,
+      suggestedName: currentDocumentFilename,
       existingHandle: handleToUse,
     });
 
     if (result.ok) {
-  currentDraftHandle = result.handle;
-  if (result.name) currentDraftFilename = result.name;
+      currentDocumentHandle = result.handle;
+      currentDocumentFilename = result.fileName;
+      updateDraftFooterName();
+      return;
+    }
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      return;
+    }
 
-  updateDraftFooterName();   
-  return;
-}
-
-  } catch (err) {
-    console.warn("FS draft save failed, falling back to download:", err);
+    console.warn(
+      'Browser document save failed; using download fallback:',
+      error
+    );
   }
 
-  updateDraftFooterName();
-
-  // Fallback: old behavior (cannot overwrite, but preserves name)
   downloadBlob({
-    bytes,
-    mime: "application/json;charset=utf-8",
-    filename: currentDraftFilename,
+    bytes: text,
+    mime: 'application/json;charset=utf-8',
+    filename: currentDocumentFilename,
   });
+
+  updateDraftFooterName();
 }
 
   function ensureHiddenDraftInput() {
@@ -711,15 +707,15 @@ setActiveView('wysiwyg');
   }
 });
 
-  // Menu: Save draft (delegates to btnSave)
-    menuSave?.addEventListener('click', () => {
-    saveDraftFile();
-    menuPanel?.classList.add('hidden');
-  });
+  // Menu: Save TypeSet document
+menuSave?.addEventListener('click', async () => {
+  await saveDocument();
+  menuPanel?.classList.add('hidden');
+});
 
-  menuSaveAs?.addEventListener("click", async () => {
-  await saveDraftFile({ forceSaveAs: true });
-  menuPanel?.classList.add("hidden");
+menuSaveAs?.addEventListener('click', async () => {
+  await saveDocument({ forceSaveAs: true });
+  menuPanel?.classList.add('hidden');
 });
 
 
