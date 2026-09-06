@@ -5,9 +5,15 @@ import { initHtmlView } from '../views/html.js';
 import { importHtmlToEditor } from '../editor/import/importHtmlToEditor.js';
 import { mountWysiwygEditor } from '../editor/mountWysiwyg.js';
 import { cleanHTML } from '../domain/html/htmlImport.js';
-import { makeDraftId, openDraftFile } from '../app/draftStore.js';
-import { serializeDocument } from '../persistence/documentPersistence.ts';
-import { saveDocumentFile } from '../persistence/browserDocumentFile.ts';
+import {
+  parseDocument,
+  serializeDocument,
+} from '../persistence/documentPersistence.ts';
+import {
+  openDocumentFile,
+  saveDocumentFile,
+} from '../persistence/browserDocumentFile.ts';
+import { exportHtmlFromEditor } from '../domain/html/htmlExport.js';
 import { prettyHtml } from '../domain/html/prettyHtml.js';
 import { createDocument } from '../document/createDocument.ts';
 
@@ -108,14 +114,6 @@ if (!cssForExport) {
   let currentDocument = createDocument();
   let currentDocumentFilename = null;
   let currentDocumentHandle = null;
-
-    // Draft session state (persists across saves until "New" or reload)
-  let currentDraftFilename = null;   // e.g. "my-doc.drft"
-  let currentDraftCreatedAt = null;  // ISO timestamp from first save/open
-
-// Draft session (Stage 8.5a)
-let currentDraftId = null;
-let currentDraftHandle = null;
 
 function updateDraftFooterName() {
   if (!statDraftName) return;
@@ -430,87 +428,131 @@ function updateDraftFooterName() {
   updateDraftFooterName();
 }
 
-  function ensureHiddenDraftInput() {
-    let input = document.getElementById('draftFileInput');
-    if (input) return input;
+function loadDocumentFromText(
+  text,
+  { handle = null, fileName = null } = {}
+) {
+  if (!lexicalEditor) {
+    throw new Error('The document editor is not ready yet.');
+  }
 
-    input = document.createElement('input');
-    input.id = 'draftFileInput';
-    input.type = 'file';
-    input.accept = '.drft,application/json';
-    input.style.display = 'none';
-    document.body.appendChild(input);
+  const result = parseDocument(text);
 
-    input.addEventListener('change', async () => {
-      const file = input.files && input.files[0];
-      input.value = ''; // allow re-opening same file later
-      if (!file) return;
+  if (!result.valid) {
+    throw new Error(result.message);
+  }
 
-      try {
-  const text = await file.text();
-  await openDraftFromText(text, { handle: null, fileName: file.name });
-} catch (err) {
-  console.error("Open draft failed:", err);
-  alert(`Could not open draft. ${err?.message || "Unknown error"}`);
+  let parsedEditorState;
+
+  try {
+    parsedEditorState = lexicalEditor.parseEditorState(
+      JSON.stringify(result.document.editorState)
+    );
+  } catch (error) {
+    console.error('Document editor state could not be parsed:', error);
+    throw new Error('The document contains an editor state that TypeSet cannot load.');
+  }
+
+  // Validation and Lexical parsing have succeeded. It is now safe to
+  // replace the current document session and editor content.
+  currentDocument = result.document;
+  currentDocumentFilename =
+    fileName ||
+    `${slugifyFilename(result.document.document.title || 'untitled')}.typeset`;
+  currentDocumentHandle = handle;
+
+  suppressWysiwygToHtml = true;
+
+  try {
+    lexicalEditor.setEditorState(parsedEditorState);
+
+    const exportedHtml = parsedEditorState.read(() =>
+      exportHtmlFromEditor(lexicalEditor)
+    );
+
+    const { html: cleanedHtml } = cleanHTML(exportedHtml);
+    docState.setCleanHtml(cleanedHtml, { from: 'wysiwyg' });
+  } finally {
+    suppressWysiwygToHtml = false;
+  }
+
+  if (wordInput) {
+    wordInput.innerHTML = '';
+  }
+
+  setActiveView('wysiwyg');
+  updateDraftFooterName();
 }
-    });
 
+function ensureHiddenDocumentInput() {
+  let input = document.getElementById('documentFileInput');
+
+  if (input) {
     return input;
   }
 
-  async function openDraftPicker() {
-  // Try FS Access API first (gives us a handle we can overwrite later)
-  try {
-    const opened = await openDraftFile();
-    if (opened.ok) {
-      await openDraftFromText(opened.text, { handle: opened.handle, fileName: opened.fileName });
+  input = document.createElement('input');
+  input.id = 'documentFileInput';
+  input.type = 'file';
+  input.accept = '.typeset,application/json';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    input.value = '';
+
+    if (!file) {
       return;
     }
-  } catch (e) {
-    // ignore and fall back
-  }
 
-  // Fallback
-  ensureHiddenDraftInput().click();
+    try {
+      const text = await file.text();
+
+      loadDocumentFromText(text, {
+        handle: null,
+        fileName: file.name,
+      });
+    } catch (error) {
+      console.error('Open document failed:', error);
+      alert(`Could not open document. ${error?.message || 'Unknown error'}`);
+    }
+  });
+
+  return input;
 }
 
-async function openDraftFromText(text, { handle = null, fileName = null } = {}) {
-  const draft = JSON.parse(text);
+async function openDocumentPicker() {
+  let opened;
 
-  if (draft?.schema !== "ts-draft") throw new Error("Not a ts draft file.");
-  if (typeof draft?.schemaVersion !== "number") throw new Error("Draft schemaVersion missing.");
-  if (draft.schemaVersion !== 1) throw new Error(`Unsupported draft schemaVersion: ${draft.schemaVersion}`);
-
-  const cleanHtml = draft?.state?.cleanHtml ?? "";
-  const lexical = draft?.state?.lexical ?? null;
-
-  // Restore identity + session info
-  currentDraftId = draft?.meta?.id || null;
-  currentDraftFilename = draft?.meta?.filename || fileName || null;
-  currentDraftCreatedAt = draft?.createdAt || null;
-  currentDraftHandle = handle;
-
-  if (!currentDraftFilename) currentDraftFilename = getInitialDraftFilename();
-  if (!currentDraftId) currentDraftId = makeDraftId();
-
-  // Restore HTML first
-  docState.setCleanHtml(cleanHtml, { from: "draft" });
-  if (htmlEditor) htmlEditor.value = cleanHtml;
-
-  // Restore Lexical if present
-  if (lexicalEditor && lexical) {
-    suppressWysiwygToHtml = true;
-    try {
-      const parsed = lexicalEditor.parseEditorState(JSON.stringify(lexical));
-      lexicalEditor.setEditorState(parsed);
-    } finally {
-      setTimeout(() => (suppressWysiwygToHtml = false), 0);
+  try {
+    opened = await openDocumentFile();
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      return;
     }
+
+    console.warn(
+      'Browser document picker failed; using file-input fallback:',
+      error
+    );
   }
 
-  setActiveView("wysiwyg");
-  updateDraftFooterName();
+  if (opened?.ok) {
+    try {
+      loadDocumentFromText(opened.text, {
+        handle: opened.handle,
+        fileName: opened.fileName,
+      });
+    } catch (error) {
+      console.error('Open document failed:', error);
+      alert(`Could not open document. ${error?.message || 'Unknown error'}`);
+    }
 
+    return;
+  }
+
+  ensureHiddenDocumentInput().click();
 }
 
 
@@ -631,15 +673,10 @@ menuNew?.addEventListener('click', () => {
   if (htmlEditor) htmlEditor.value = '';
   clearWysiwygToEmpty();
 
-  // 3) Reset document and legacy draft session state
-  currentDocument = createDocument();
-  currentDocumentFilename = null;
-  currentDocumentHandle = null;
-
-  currentDraftFilename = null;
-  currentDraftCreatedAt = null;
-  currentDraftId = null;
-  currentDraftHandle = null;
+  // 3) Start a new TypeSet document session
+currentDocument = createDocument();
+currentDocumentFilename = null;
+currentDocumentHandle = null;
 
   // 4) UI refresh
   updateDraftFooterName();
@@ -656,7 +693,7 @@ menuNew?.addEventListener('click', () => {
   try {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.html,.htm,.drft';
+    input.accept = '.html,.htm';
     input.style.display = 'none';
     document.body.appendChild(input);
 
@@ -665,17 +702,6 @@ menuNew?.addEventListener('click', () => {
       input.remove();
       if (!file) return;
 
-      const name = (file.name || '').toLowerCase();
-
-      // Route .drft to existing draft loader if you want Import to handle drafts too
-      if (name.endsWith('.drft')) {
-        // Option A: reuse your existing picker flow (recommended if you already have a solid loader)
-        // openDraftFromFile(file);
-
-        // Option B: if you only have openDraftPicker(), keep Import as HTML-only for now:
-        alert('Use “Open draft” for .drft files (for now).');
-        return;
-      }
 
       const text = await file.text();
 
@@ -720,11 +746,11 @@ menuSaveAs?.addEventListener('click', async () => {
 
 
 
-  // Menu: Open draft
-  menuOpenDraft?.addEventListener('click', () => {
-    openDraftPicker();
-    menuPanel?.classList.add('hidden');
-  });
+  // Menu: Open TypeSet document
+menuOpenDraft?.addEventListener('click', async () => {
+  await openDocumentPicker();
+  menuPanel?.classList.add('hidden');
+});
 
   // Menu: Publish HTML
     menuExportHtml?.addEventListener('click', () => {
