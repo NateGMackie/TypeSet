@@ -7,11 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "npm run test:document && npm run test:persistence && npm run test:golden",
-    "typecheck": "tsc --noEmit",
+"test": "npm run test:document && npm run test:persistence && npm run test:recovery && npm run test:golden",    "typecheck": "tsc --noEmit",
     "test:golden": "node tests/run-sanitize-golden.mjs --mode=export",
     "test:golden:word": "node tests/run-sanitize-golden.mjs --mode=word",
     "test:document": "tsx tests/document/run-document-tests.mjs",
+    "test:recovery": "tsx tests/persistence/run-recovery-storage-tests.mjs",
     "test:persistence": "tsx tests/persistence/run-persistence-tests.mjs"
   },
   "dependencies": {
