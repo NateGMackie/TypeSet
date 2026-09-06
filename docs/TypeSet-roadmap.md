@@ -248,11 +248,11 @@ before structural editor changes begin.
 and export golden suites.\
 -   ✅ Establish incremental TypeScript with strict type checking and a
     CI type-check gate.\
--   🟡 Implement new document and boundary modules in TypeScript.
-documentTypes.ts, validateDocument.ts, createDocument.ts, and the
-document persistence serialization/parsing boundary are in place.
-Save/Open file-access integration is next. Legacy draft migration is
-not required.\
+-   ✅ Implement new document and boundary modules in TypeScript.
+    `documentTypes.ts`, `validateDocument.ts`, `createDocument.ts`,
+    `documentPersistence.ts`, and `browserDocumentFile.ts` are in place.
+    Save/Open now operates through the Version 1 TypeSet document
+    boundary. Legacy draft migration is not required.\
 -   ⬜ Record the seven Word-suite failures as explicit baseline
     defects, then fix them deliberately.\
 -   ⬜ Add initial Lexical import/export, round-trip, draft, and
@@ -339,7 +339,7 @@ recorded - export-suite result recorded - Word-suite baseline recorded
   | B1 | Define and approve document schema | ✅ Complete | 
   | B2 | Implement document creation and validation | 🟢 Complete — document creation and validation implemented and verified | 
   | B3 | Legacy draft handling | ✅ Decision complete — reject obsolete `.drft` formats; no migration | 
-  | B4 | Implement save/open through the new document boundary | 🟡 Persistence serialization/parsing boundary complete; browser file access and Save/Open integration next | 
+  | B4 | Implement save/open through the new document boundary | ✅ Complete — `.typeset` Save, Save As, and Open operate through the validated document and browser file-access boundaries | 
   | B5 | Add recovery behavior for supported TypeSet documents | ⬜ Not started | 
   | B6 | Add document and persistence tests | ✅ Complete — document validation, creation, and persistence round-trip coverage implemented and verified |
   
@@ -905,21 +905,20 @@ layer rather than implement features separately.
 
 ## **6.1 Saving and recovery**
 
-**Status:** 🟡 Version 1 document schema and validation established;
-Save/Open integration and recovery remain
+**Status:** 🟡 Version 1 document Save/Open complete; recovery remains
 
--   ✅ Save draft identity, timestamps, canonical HTML, and serialized
-    Lexical state in a JSON envelope.\
--   ✅ Restore HTML and Lexical state from saved drafts.\
--   ✅ Resolve future document authority: serialized Lexical state in
-    the TypeSet Version 1 document is authoritative; generated HTML is
-    not persisted.\
--   🟡 Replace the existing dual-representation Save/Open path with the
-    approved TypeSet document boundary. Schema and validation exist;
-    application integration remains.\
--   🟡 Add document round-trip, schema-version, rejection, and recovery
-    tests. Ten document validation fixtures pass; Save/Open and recovery
-    coverage remain.\
+-   ✅ Save TypeSet document identity, metadata, and serialized Lexical
+    state in the Version 1 JSON envelope.\
+-   ✅ Open validated `.typeset` documents and restore their serialized
+    Lexical state without persisting generated HTML.\
+-   ✅ Treat serialized Lexical state as authoritative; regenerate
+    canonical HTML after opening.\
+-   ✅ Replace the historical dual-representation draft path with the
+    approved TypeSet document boundary.\
+-   🟡 Add document round-trip, schema-version, rejection, Save/Open, and
+    recovery tests. Document validation and persistence round-trip
+    coverage pass; Save/Open is manually verified in Chrome; recovery
+    coverage remains.\
 -   ⬜ Add backups or version history.\
 -   ⬜ Preserve last successfully applied HTML when Apply fails.\
 -   ✅ Prefer recovering user content over destructive rejection.\
@@ -1152,21 +1151,15 @@ Move these when Release 0 begins and verify imports/tests in the same
 commit:
 
   ----------------------------------------------------------------------------
-  Current location                    Intended location
-  ----------------------------------- ----------------------------------------
-  `src/nodes/*`                       `src/editor/nodes/*`
+  | Current location | Intended location |
+  | --- | --- | 
+  | `src/nodes/*` | `src/editor/nodes/*` |
+  | `src/utils/KeyboardPlugin.js` | `src/editor/plugins/KeyboardPlugin.js` |
+  | `src/app/draftStore.js` | Removed — superseded by `src/persistence/browserDocumentFile.ts` |
+  | `src/domain/markdown/markdown.js` | `src/import/markdown/markdown.js` |
+  | `tests/sanitize/fixtures/` | `tests/export/html/fixtures/` --- ✅ moved |
+  | `tests/sanitize/fixtures_word/` | `tests/import/word/fixtures/` --- ✅ moved |
 
-  `src/utils/KeyboardPlugin.js`       `src/editor/plugins/KeyboardPlugin.js`
-
-  `src/app/draftStore.js`             `src/persistence/draftStore.js`
-
-  `src/domain/markdown/markdown.js`   `src/import/markdown/markdown.js`
-
-  `tests/sanitize/fixtures/`          `tests/export/html/fixtures/` --- ✅
-                                      moved
-
-  `tests/sanitize/fixtures_word/`     `tests/import/word/fixtures/` --- ✅
-                                      moved
   ----------------------------------------------------------------------------
 
 ## **9A.3 Architecture-led moves**
@@ -1725,19 +1718,18 @@ Continue **Release 0 --- Verified architecture and engineering
 baseline**.
 
 The repository baseline, TypeScript foundation, Version 1 document
-contract, and initial document validation suite are established. The
-next bounded implementation task is `src/document/createDocument.ts`:
-one sanctioned way to create a valid Version 1 TypeSet document. After
-that, proceed to the persistence boundary and Save/Open integration.
+contract, document creation and validation, persistence boundary, browser
+file access, and Save/Open integration are established and verified.
+Stage 2.1.B units B1–B4 and B6 are complete.
 
-The remaining Release 0 questions include:
+The next bounded task is B5: define recovery behavior for supported
+`.typeset` documents before implementing it.
 
-1.  What is the minimum TypeSet-owned document envelope around
-    Lexical-compatible JSON?\
-2.  Which metadata and recovery fields must remain outside the editor
-    state?\
-3.  How do Scrub Mode and deliberate HTML Apply update the structured
-    document?\
+The remaining recovery decisions include:
+
+1.  What event or interval creates a recovery snapshot?\
+2.  Where are recovery snapshots stored, and how long are they retained?\
+3.  When should TypeSet offer, replace, or discard recovery data?
 4.  When and where is canonical HTML generated and fully validated?\
 5.  How are existing dual-state `.drft` files migrated safely?\
 6.  Which initial integration tests protect the migration?\
