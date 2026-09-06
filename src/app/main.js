@@ -28,7 +28,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const htmlEditor = $('htmlEditor');
   const wysiwyg = $('wysiwygEditor');
 
-  const statDraftName = $('statDraftName');
+  const statDocumentName = $('statDocumentName');
   const statBytes = $('statBytes');
   const statWords = $('statWords');
   const badgeActive = $('badgeActive');
@@ -53,7 +53,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const menuImport = $('menuImport');
   const menuSave = $('menuSave');
   const menuSaveAs = $('menuSaveAs');
-  const menuOpenDraft = $('menuOpenDraft');
+  const menuOpenDocument = $('menuOpenDocument');
   const menuExportHtml = $('menuExportHtml');
 
   // Toolbars
@@ -115,8 +115,8 @@ if (!cssForExport) {
   let currentDocumentFilename = null;
   let currentDocumentHandle = null;
 
-function updateDraftFooterName() {
-  if (!statDraftName) return;
+function updateDocumentFooterName() {
+  if (!statDocumentName) return;
 
   const name =
     currentDocumentFilename &&
@@ -124,7 +124,7 @@ function updateDraftFooterName() {
       ? currentDocumentFilename
       : 'Untitled';
 
-  statDraftName.textContent = name;
+  statDocumentName.textContent = name;
 }
 
   function getActiveView() {
@@ -282,7 +282,7 @@ function updateDraftFooterName() {
 
 
   // ============================================================
-  // 5) EXPORT + DRAFT SAVE/OPEN
+  // 5) EXPORT + DOCUMENT SAVE/OPEN
   // ============================================================
     function getExportFragmentHtml() {
       
@@ -405,7 +405,7 @@ function updateDraftFooterName() {
     if (result.ok) {
       currentDocumentHandle = result.handle;
       currentDocumentFilename = result.fileName;
-      updateDraftFooterName();
+      updateDocumentFooterName();
       return;
     }
   } catch (error) {
@@ -425,7 +425,7 @@ function updateDraftFooterName() {
     filename: currentDocumentFilename,
   });
 
-  updateDraftFooterName();
+  updateDocumentFooterName();
 }
 
 function loadDocumentFromText(
@@ -481,7 +481,7 @@ function loadDocumentFromText(
   }
 
   setActiveView('wysiwyg');
-  updateDraftFooterName();
+  updateDocumentFooterName();
 }
 
 function ensureHiddenDocumentInput() {
@@ -679,7 +679,7 @@ currentDocumentFilename = null;
 currentDocumentHandle = null;
 
   // 4) UI refresh
-  updateDraftFooterName();
+  updateDocumentFooterName();
   setActiveView('wysiwyg');
 
   menuPanel?.classList.add('hidden');
@@ -747,7 +747,7 @@ menuSaveAs?.addEventListener('click', async () => {
 
 
   // Menu: Open TypeSet document
-menuOpenDraft?.addEventListener('click', async () => {
+menuOpenDocument?.addEventListener('click', async () => {
   await openDocumentPicker();
   menuPanel?.classList.add('hidden');
 });
@@ -771,7 +771,7 @@ menuOpenDraft?.addEventListener('click', async () => {
   // ============================================================
   docState.setCleanHtml('', { from: 'system' });
   setActiveView('wysiwyg');
-  updateDraftFooterName();
+  updateDocumentFooterName();
 
   // ============================================================
   // 9) MOUNT LEXICAL (last)
