@@ -7,7 +7,7 @@ import { mountWysiwygEditor } from '../editor/mountWysiwyg.js';
 import { cleanHTML } from '../domain/html/htmlImport.js';
 import { makeDraftId, saveDraftBytes, openDraftFile } from "../app/draftStore.js";
 import { prettyHtml } from '../domain/html/prettyHtml.js';
-
+import { createDocument } from '../document/createDocument.ts';
 
 const $ = (id) => document.getElementById(id);
 
@@ -101,6 +101,11 @@ if (!cssForExport) {
   let activeView = 'wysiwyg';
 
   let htmlViewApi = null; // will be set after initHtmlView()
+
+  // TypeSet document session
+  let currentDocument = createDocument();
+  let currentDocumentFilename = null;
+  let currentDocumentHandle = null;
 
     // Draft session state (persists across saves until "New" or reload)
   let currentDraftFilename = null;   // e.g. "my-doc.drft"
@@ -630,7 +635,11 @@ menuNew?.addEventListener('click', () => {
   if (htmlEditor) htmlEditor.value = '';
   clearWysiwygToEmpty();
 
-  // 3) Reset draft session
+  // 3) Reset document and legacy draft session state
+  currentDocument = createDocument();
+  currentDocumentFilename = null;
+  currentDocumentHandle = null;
+
   currentDraftFilename = null;
   currentDraftCreatedAt = null;
   currentDraftId = null;
