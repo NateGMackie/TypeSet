@@ -16,7 +16,10 @@ import {
 import { exportHtmlFromEditor } from '../domain/html/htmlExport.js';
 import { prettyHtml } from '../domain/html/prettyHtml.js';
 import { createDocument } from '../document/createDocument.ts';
-import { writeRecoverySnapshot } from '../persistence/recoveryStorage.ts';
+import {
+  clearRecoverySnapshot,
+  writeRecoverySnapshot,
+} from '../persistence/recoveryStorage.ts';
 
 const $ = (id) => document.getElementById(id);
 
@@ -409,11 +412,12 @@ function updateDocumentFooterName() {
     });
 
     if (result.ok) {
-      currentDocumentHandle = result.handle;
-      currentDocumentFilename = result.fileName;
-      updateDocumentFooterName();
-      return;
-    }
+  currentDocumentHandle = result.handle;
+  currentDocumentFilename = result.fileName;
+  updateDocumentFooterName();
+  clearRecoveryAfterSuccessfulSave();
+  return;
+}
   } catch (error) {
     if (error?.name === 'AbortError') {
       return;
@@ -426,12 +430,13 @@ function updateDocumentFooterName() {
   }
 
   downloadBlob({
-    bytes: text,
-    mime: 'application/json;charset=utf-8',
-    filename: currentDocumentFilename,
-  });
+  bytes: text,
+  mime: 'application/json;charset=utf-8',
+  filename: currentDocumentFilename,
+});
 
-  updateDocumentFooterName();
+updateDocumentFooterName();
+clearRecoveryAfterSuccessfulSave();
 }
 
 function captureRecoverySnapshot() {
@@ -485,6 +490,19 @@ function scheduleRecoverySnapshot() {
     captureRecoverySnapshot,
     RECOVERY_DEBOUNCE_MS
   );
+}
+
+function clearRecoveryAfterSuccessfulSave() {
+  if (recoveryTimer !== null) {
+    clearTimeout(recoveryTimer);
+    recoveryTimer = null;
+  }
+
+  const result = clearRecoverySnapshot();
+
+  if (!result.ok) {
+    console.warn(result.message);
+  }
 }
 
 function loadDocumentFromText(
