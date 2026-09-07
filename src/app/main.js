@@ -16,6 +16,7 @@ import {
 import { exportHtmlFromEditor } from '../domain/html/htmlExport.js';
 import { prettyHtml } from '../domain/html/prettyHtml.js';
 import { createDocument } from '../document/createDocument.ts';
+import { writeRecoverySnapshot } from '../persistence/recoveryStorage.ts';
 
 const $ = (id) => document.getElementById(id);
 
@@ -114,6 +115,11 @@ if (!cssForExport) {
   let currentDocument = createDocument();
   let currentDocumentFilename = null;
   let currentDocumentHandle = null;
+  const RECOVERY_DEBOUNCE_MS = 2000;
+
+let recoveryTimer = null;
+let unregisterRecoveryListener = null;
+
 
 function updateDocumentFooterName() {
   if (!statDocumentName) return;
@@ -426,6 +432,59 @@ function updateDocumentFooterName() {
   });
 
   updateDocumentFooterName();
+}
+
+function captureRecoverySnapshot() {
+  recoveryTimer = null;
+
+  if (!lexicalEditor) {
+    return;
+  }
+
+  let editorState;
+
+  try {
+    editorState = lexicalEditor.getEditorState().toJSON();
+  } catch (error) {
+    console.error(
+      'Recovery could not serialize the editor state:',
+      error
+    );
+    return;
+  }
+
+  const cleanHtml = docState.getCleanHtml() || '';
+  const now = new Date().toISOString();
+
+  const recoveryDocument = {
+    ...currentDocument,
+    document: {
+      ...currentDocument.document,
+      title: extractTitleFromHtml(cleanHtml),
+      updatedAt: now,
+    },
+    editorState,
+  };
+
+  const result = writeRecoverySnapshot(recoveryDocument);
+
+  if (!result.ok) {
+    console.warn(result.message);
+    return;
+  }
+
+  currentDocument = recoveryDocument;
+}
+
+function scheduleRecoverySnapshot() {
+  if (recoveryTimer !== null) {
+    clearTimeout(recoveryTimer);
+  }
+
+  recoveryTimer = window.setTimeout(
+    captureRecoverySnapshot,
+    RECOVERY_DEBOUNCE_MS
+  );
 }
 
 function loadDocumentFromText(
@@ -778,8 +837,25 @@ menuOpenDocument?.addEventListener('click', async () => {
   // ============================================================
   mountWysiwygEditor({
     onEditorReady: (editor) => {
-      lexicalEditor = editor;
-    },
+  lexicalEditor = editor;
+
+  // Wait until initial editor setup finishes so the automatically
+  // created empty paragraph is not treated as unsaved author work.
+  window.setTimeout(() => {
+    unregisterRecoveryListener?.();
+
+    unregisterRecoveryListener = editor.registerUpdateListener(({ tags }) => {
+  if (
+    suppressWysiwygToHtml ||
+    tags.has('typeset-initialization')
+  ) {
+    return;
+  }
+
+  scheduleRecoverySnapshot();
+});
+  }, 0);
+},
     onHtmlChange: (html) => {
   if (suppressWysiwygToHtml) return;
 
