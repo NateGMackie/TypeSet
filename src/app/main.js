@@ -492,6 +492,16 @@ function scheduleRecoverySnapshot() {
   );
 }
 
+function flushPendingRecoverySnapshot() {
+  if (recoveryTimer === null) {
+    return;
+  }
+
+  clearTimeout(recoveryTimer);
+  recoveryTimer = null;
+  captureRecoverySnapshot();
+}
+
 function clearRecoveryAfterSuccessfulSave() {
   if (recoveryTimer !== null) {
     clearTimeout(recoveryTimer);
@@ -702,6 +712,9 @@ async function openDocumentPicker() {
   // ============================================================
   // 7) EVENT WIRING (one place, after all declarations)
   // ============================================================
+
+  window.addEventListener('pagehide', flushPendingRecoverySnapshot);
+
   // Theme
   if (btnThemeToggle) {
     btnThemeToggle.addEventListener('click', () => {
