@@ -18,6 +18,7 @@ import { prettyHtml } from '../domain/html/prettyHtml.js';
 import { createDocument } from '../document/createDocument.ts';
 import {
   clearRecoverySnapshot,
+  readRecoverySnapshot,
   writeRecoverySnapshot,
 } from '../persistence/recoveryStorage.ts';
 
@@ -571,6 +572,63 @@ function loadDocumentFromText(
   updateDocumentFooterName();
 }
 
+function offerRecoveryAtStartup() {
+  const result = readRecoverySnapshot();
+
+  if (result.status === 'none') {
+    return;
+  }
+
+  if (result.status === 'unavailable') {
+    console.warn(result.message);
+    return;
+  }
+
+  if (result.status === 'invalid') {
+    alert(
+      `TypeSet found recovery data that it could not read. ` +
+      `${result.message} The recovery data has been retained.`
+    );
+    return;
+  }
+
+  const recoveredTitle =
+    result.snapshot.document.document.title || 'Untitled';
+
+  const capturedAt = new Date(
+    result.snapshot.capturedAt
+  ).toLocaleString();
+
+  const shouldRestore = window.confirm(
+    `TypeSet found unsaved work for "${recoveredTitle}" ` +
+    `from ${capturedAt}.\n\n` +
+    `Select OK to restore it. Select Cancel to leave it stored.`
+  );
+
+  if (!shouldRestore) {
+    return;
+  }
+
+  try {
+    loadDocumentFromText(
+      serializeDocument(result.snapshot.document)
+    );
+
+    // A recovery snapshot has no browser file handle. The next Save
+    // must use Save As instead of overwriting an assumed file.
+    currentDocumentFilename = null;
+    currentDocumentHandle = null;
+    updateDocumentFooterName();
+  } catch (error) {
+    console.error('Recovery restore failed:', error);
+
+    alert(
+      `TypeSet could not restore the recovered document. ` +
+      `The recovery data has been retained.`
+    );
+  }
+}
+
 function ensureHiddenDocumentInput() {
   let input = document.getElementById('documentFileInput');
 
@@ -885,6 +943,20 @@ menuOpenDocument?.addEventListener('click', async () => {
 
   scheduleRecoverySnapshot();
 });
+
+unregisterRecoveryListener = editor.registerUpdateListener(({ tags }) => {
+  if (
+    suppressWysiwygToHtml ||
+    tags.has('typeset-initialization')
+  ) {
+    return;
+  }
+
+  scheduleRecoverySnapshot();
+});
+
+offerRecoveryAtStartup();
+
   }, 0);
 },
     onHtmlChange: (html) => {
