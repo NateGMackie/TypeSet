@@ -340,7 +340,7 @@ recorded - export-suite result recorded - Word-suite baseline recorded
 | B2 | Implement document creation and validation | 🟢 Complete — document creation and validation implemented and verified |
 | B3 | Legacy draft handling | ✅ Decision complete — reject obsolete `.drft` formats; no migration |
 | B4 | Implement save/open through the new document boundary | ✅ Complete — `.typeset` Save, Save As, and Open operate through the validated document and browser file-access boundaries |
-| B5 | Add recovery behavior for supported TypeSet documents | 🟡 Recovery contract approved; implementation next |
+| B5 | Add recovery behavior for supported TypeSet documents | 🟡 In progress — recovery capture, page-close flushing, startup restoration, validation, and Save clearing implemented; explicit discard and New/Open protection remain |
 | B6 | Add document and persistence tests | ✅ Complete — document validation, creation, and persistence round-trip coverage implemented and verified |
   
   -----------------------------------------------------------------------

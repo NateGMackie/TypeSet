@@ -29,6 +29,11 @@
     background-color: rgba(56, 189, 248, 0.16); /* soft sky tint */
     border-color: rgb(56, 189, 248);
   }
+
+  #recoveryDialog::backdrop {
+    background: rgba(15, 23, 42, 0.72);
+    backdrop-filter: blur(2px);
+  }
 </style>
 
 </head>
@@ -611,7 +616,47 @@ body.draft::before {
     white-space: nowrap;
 }
   </template>
+    <dialog
+    id="recoveryDialog"
+    closeby="none"
+    class="w-[min(92vw,32rem)] rounded-xl border border-slate-700 bg-slate-900 p-0 text-slate-100 shadow-2xl"
+    aria-labelledby="recoveryDialogTitle"
+    aria-describedby="recoveryDialogMessage"
+  >
+    <div class="p-6">
+      <h2
+        id="recoveryDialogTitle"
+        class="mb-3 text-lg font-semibold"
+      >
+        Unsaved work found
+      </h2>
+
+      <p
+        id="recoveryDialogMessage"
+        class="mb-6 text-sm leading-6 text-slate-300"
+      ></p>
+
+      <div class="flex justify-end gap-3">
+        <button
+          id="btnRecoveryDiscard"
+          type="button"
+          class="rounded-md border border-red-500 px-4 py-2 text-sm text-red-300"
+        >
+          Discard
+        </button>
+
+        <button
+          id="btnRecoveryRestore"
+          type="button"
+          class="rounded-md bg-sky-500 px-4 py-2 text-sm font-medium text-slate-950"
+        >
+          Restore
+        </button>
+      </div>
+    </div>
+  </dialog>
 
   <script type="module" src="./src/app/main.js"></script>
 </body>
+
 </html>

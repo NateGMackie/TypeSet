@@ -32,6 +32,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const wordInput = $('wordInput');
   const htmlEditor = $('htmlEditor');
   const wysiwyg = $('wysiwygEditor');
+  const recoveryDialog = $('recoveryDialog');
+const recoveryDialogMessage = $('recoveryDialogMessage');
+const btnRecoveryRestore = $('btnRecoveryRestore');
+const btnRecoveryDiscard = $('btnRecoveryDiscard');
 
   const statDocumentName = $('statDocumentName');
   const statBytes = $('statBytes');
@@ -123,7 +127,7 @@ if (!cssForExport) {
 
 let recoveryTimer = null;
 let unregisterRecoveryListener = null;
-
+let pendingRecoverySnapshot = null;
 
 function updateDocumentFooterName() {
   if (!statDocumentName) return;
@@ -572,6 +576,62 @@ function loadDocumentFromText(
   updateDocumentFooterName();
 }
 
+function closeRecoveryDialog() {
+  if (recoveryDialog?.open) {
+    recoveryDialog.close();
+  }
+
+  pendingRecoverySnapshot = null;
+}
+
+function restorePendingRecovery() {
+  if (!pendingRecoverySnapshot) {
+    return;
+  }
+
+  try {
+    loadDocumentFromText(
+      serializeDocument(pendingRecoverySnapshot.document)
+    );
+
+    // Recovery does not retain a filename or browser file handle.
+    // The next Save must use Save As.
+    currentDocumentFilename = null;
+    currentDocumentHandle = null;
+    updateDocumentFooterName();
+    closeRecoveryDialog();
+  } catch (error) {
+    console.error('Recovery restore failed:', error);
+    closeRecoveryDialog();
+
+    alert(
+      `TypeSet could not restore the recovered document. ` +
+      `The recovery data has been retained.`
+    );
+  }
+}
+
+function discardPendingRecovery() {
+  if (!pendingRecoverySnapshot) {
+    return;
+  }
+
+  const result = clearRecoverySnapshot();
+
+  if (!result.ok) {
+    console.warn(result.message);
+
+    alert(
+      `TypeSet could not discard the recovery data. ` +
+      `It has been retained.`
+    );
+
+    return;
+  }
+
+  closeRecoveryDialog();
+}
+
 function offerRecoveryAtStartup() {
   const result = readRecoverySnapshot();
 
@@ -592,6 +652,8 @@ function offerRecoveryAtStartup() {
     return;
   }
 
+  pendingRecoverySnapshot = result.snapshot;
+
   const recoveredTitle =
     result.snapshot.document.document.title || 'Untitled';
 
@@ -599,34 +661,11 @@ function offerRecoveryAtStartup() {
     result.snapshot.capturedAt
   ).toLocaleString();
 
-  const shouldRestore = window.confirm(
+  recoveryDialogMessage.textContent =
     `TypeSet found unsaved work for "${recoveredTitle}" ` +
-    `from ${capturedAt}.\n\n` +
-    `Select OK to restore it. Select Cancel to leave it stored.`
-  );
+    `from ${capturedAt}. Restore it or permanently discard it.`;
 
-  if (!shouldRestore) {
-    return;
-  }
-
-  try {
-    loadDocumentFromText(
-      serializeDocument(result.snapshot.document)
-    );
-
-    // A recovery snapshot has no browser file handle. The next Save
-    // must use Save As instead of overwriting an assumed file.
-    currentDocumentFilename = null;
-    currentDocumentHandle = null;
-    updateDocumentFooterName();
-  } catch (error) {
-    console.error('Recovery restore failed:', error);
-
-    alert(
-      `TypeSet could not restore the recovered document. ` +
-      `The recovery data has been retained.`
-    );
-  }
+  recoveryDialog.showModal();
 }
 
 function ensureHiddenDocumentInput() {
@@ -772,6 +811,29 @@ async function openDocumentPicker() {
   // ============================================================
 
   window.addEventListener('pagehide', flushPendingRecoverySnapshot);
+  btnRecoveryRestore?.addEventListener(
+  'click',
+  restorePendingRecovery
+);
+
+btnRecoveryDiscard?.addEventListener(
+  'click',
+  discardPendingRecovery
+);
+
+// Recovery requires an explicit Restore or Discard choice.
+// Escape must not silently dismiss the decision.
+recoveryDialog?.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  event.stopImmediatePropagation();
+});
+
+recoveryDialog?.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+});
 
   // Theme
   if (btnThemeToggle) {
