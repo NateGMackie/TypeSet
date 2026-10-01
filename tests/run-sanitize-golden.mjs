@@ -76,8 +76,11 @@ installDomShim();
 
 const FIXTURES_ROOT = path.resolve(
   process.cwd(),
-  mode === "word" ? "tests/sanitize/fixtures_word" : "tests/sanitize/fixtures"
+  mode === "word"
+    ? "tests/import/word/fixtures"
+    : "tests/export/html/fixtures"
 );
+
 if (!fs.existsSync(FIXTURES_ROOT)) {
   console.error(`Fixtures folder not found: ${FIXTURES_ROOT}`);
   process.exit(2);

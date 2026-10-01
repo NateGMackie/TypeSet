@@ -243,6 +243,44 @@ function dedupeIds(doc) {
 
 }
 
+function removeEmptyInlineFormatting(doc) {
+  doc.querySelectorAll("strong, em, u, s, sub, sup").forEach((element) => {
+    if ((element.textContent || "").trim() !== "") return;
+    if (element.querySelector("img, br")) return;
+
+    element.remove();
+  });
+}
+
+function normalizeHeadingStructure(doc) {
+  doc.querySelectorAll("h1, h2, h3").forEach((heading) => {
+    const meaningfulChildren = Array.from(heading.childNodes).filter((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return (node.nodeValue || "").trim() !== "";
+      }
+
+      return node.nodeType === Node.ELEMENT_NODE;
+    });
+
+    if (meaningfulChildren.length !== 1) return;
+
+    const onlyChild = meaningfulChildren[0];
+
+    if (
+      onlyChild.nodeType !== Node.ELEMENT_NODE ||
+      onlyChild.tagName.toLowerCase() !== "strong"
+    ) {
+      return;
+    }
+
+    while (onlyChild.firstChild) {
+      heading.insertBefore(onlyChild.firstChild, onlyChild);
+    }
+
+    onlyChild.remove();
+  });
+}
+
 function normalizeNestedListStructure(doc) {
   const listItems = Array.from(doc.querySelectorAll("li")).reverse();
 
@@ -555,6 +593,13 @@ Array.from(doc.body.childNodes).forEach(sanitizeNode);
 // the parent item. Attach that nested list to the preceding <li>
 // to produce conventional semantic HTML.
 normalizeNestedListStructure(doc);
+
+// Remove empty formatting elements left behind by Word or other imports.
+removeEmptyInlineFormatting(doc);
+
+// Heading elements already provide the visual and semantic emphasis.
+// Remove a redundant <strong> when it wraps the entire heading.
+normalizeHeadingStructure(doc);
 
 trimBoundaryEmptyParagraphs(doc.body);
 dedupeIds(doc);

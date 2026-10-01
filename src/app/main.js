@@ -5,9 +5,22 @@ import { initHtmlView } from '../views/html.js';
 import { importHtmlToEditor } from '../editor/import/importHtmlToEditor.js';
 import { mountWysiwygEditor } from '../editor/mountWysiwyg.js';
 import { cleanHTML } from '../domain/html/htmlImport.js';
-import { makeDraftId, saveDraftBytes, openDraftFile } from "../app/draftStore.js";
+import {
+  parseDocument,
+  serializeDocument,
+} from '../persistence/documentPersistence.ts';
+import {
+  openDocumentFile,
+  saveDocumentFile,
+} from '../persistence/browserDocumentFile.ts';
+import { exportHtmlFromEditor } from '../domain/html/htmlExport.js';
 import { prettyHtml } from '../domain/html/prettyHtml.js';
-
+import { createDocument } from '../document/createDocument.ts';
+import {
+  clearRecoverySnapshot,
+  readRecoverySnapshot,
+  writeRecoverySnapshot,
+} from '../persistence/recoveryStorage.ts';
 
 const $ = (id) => document.getElementById(id);
 
@@ -19,8 +32,12 @@ window.addEventListener('DOMContentLoaded', () => {
   const wordInput = $('wordInput');
   const htmlEditor = $('htmlEditor');
   const wysiwyg = $('wysiwygEditor');
+  const recoveryDialog = $('recoveryDialog');
+const recoveryDialogMessage = $('recoveryDialogMessage');
+const btnRecoveryRestore = $('btnRecoveryRestore');
+const btnRecoveryDiscard = $('btnRecoveryDiscard');
 
-  const statDraftName = $('statDraftName');
+  const statDocumentName = $('statDocumentName');
   const statBytes = $('statBytes');
   const statWords = $('statWords');
   const badgeActive = $('badgeActive');
@@ -45,7 +62,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const menuImport = $('menuImport');
   const menuSave = $('menuSave');
   const menuSaveAs = $('menuSaveAs');
-  const menuOpenDraft = $('menuOpenDraft');
+  const menuOpenDocument = $('menuOpenDocument');
   const menuExportHtml = $('menuExportHtml');
 
   // Toolbars
@@ -102,23 +119,26 @@ if (!cssForExport) {
 
   let htmlViewApi = null; // will be set after initHtmlView()
 
-    // Draft session state (persists across saves until "New" or reload)
-  let currentDraftFilename = null;   // e.g. "my-doc.drft"
-  let currentDraftCreatedAt = null;  // ISO timestamp from first save/open
+  // TypeSet document session
+  let currentDocument = createDocument();
+  let currentDocumentFilename = null;
+  let currentDocumentHandle = null;
+  const RECOVERY_DEBOUNCE_MS = 2000;
 
-// Draft session (Stage 8.5a)
-let currentDraftId = null;
-let currentDraftHandle = null;
+let recoveryTimer = null;
+let unregisterRecoveryListener = null;
+let pendingRecoverySnapshot = null;
 
-function updateDraftFooterName() {
-  if (!statDraftName) return;
+function updateDocumentFooterName() {
+  if (!statDocumentName) return;
 
-  // Prefer current session filename; fallback to a friendly label
-  const name = (currentDraftFilename && String(currentDraftFilename).trim())
-    ? currentDraftFilename
-    : 'Untitled';
+  const name =
+    currentDocumentFilename &&
+    String(currentDocumentFilename).trim()
+      ? currentDocumentFilename
+      : 'Untitled';
 
-  statDraftName.textContent = name;
+  statDocumentName.textContent = name;
 }
 
   function getActiveView() {
@@ -244,9 +264,9 @@ function updateDraftFooterName() {
     return slugifyFilename(title || htmlToText(html) || 'blank');
   }
 
-    function getInitialDraftFilename() {
-    return `${getDocBaseName()}.drft`;
-  }
+    function getInitialDocumentFilename() {
+  return `${getDocBaseName()}.typeset`;
+}
 
 
   // ============================================================
@@ -276,7 +296,7 @@ function updateDraftFooterName() {
 
 
   // ============================================================
-  // 5) EXPORT + DRAFT SAVE/OPEN
+  // 5) EXPORT + DOCUMENT SAVE/OPEN
   // ============================================================
     function getExportFragmentHtml() {
       
@@ -353,163 +373,370 @@ function updateDraftFooterName() {
     });
   }
 
-    async function saveDraftFile({ forceSaveAs = false } = {}) {
-  const cleanHtml = docState.getCleanHtml() || "";
-
-  let lexicalState = null;
-  try {
-    if (lexicalEditor) {
-      lexicalState = lexicalEditor.getEditorState().toJSON();
-    }
-  } catch (e) {
-    console.warn("Draft save: could not serialize Lexical state:", e);
+    async function saveDocument({ forceSaveAs = false } = {}) {
+  if (!lexicalEditor) {
+    alert('The document editor is not ready yet.');
+    return;
   }
 
-  // Stable identity (Stage 8.5a)
-  if (!currentDraftId) currentDraftId = makeDraftId();
+  let editorState;
 
-  // First-save filename
-  if (!currentDraftFilename) currentDraftFilename = getInitialDraftFilename();
+  try {
+    editorState = lexicalEditor.getEditorState().toJSON();
+  } catch (error) {
+    console.error('Document save could not serialize the editor state:', error);
+    alert('TypeSet could not prepare this document for saving.');
+    return;
+  }
 
-  updateDraftFooterName();
+  const cleanHtml = docState.getCleanHtml() || '';
+  const now = new Date().toISOString();
 
-  const nowIso = new Date().toISOString();
-  if (!currentDraftCreatedAt) currentDraftCreatedAt = nowIso;
-
-  const draft = {
-    schema: "ts-draft",
-    schemaVersion: 1,
-    createdAt: currentDraftCreatedAt,
-    updatedAt: nowIso,
-    app: { name: "ts", version: "dev" },
-    state: {
-      cleanHtml,
-      lexical: lexicalState,
+  currentDocument = {
+    ...currentDocument,
+    document: {
+      ...currentDocument.document,
+      title: extractTitleFromHtml(cleanHtml),
+      updatedAt: now,
     },
-    meta: {
-      id: currentDraftId, // ✅ stable doc identity
-      activeView: activeView || "wysiwyg",
-      filename: currentDraftFilename, // ✅ preferred name
-      title: extractTitleFromHtml(cleanHtml) || getDocBaseName(),
-    },
+    editorState,
   };
 
-  const bytes = JSON.stringify(draft, null, 2);
+  if (!currentDocumentFilename) {
+    currentDocumentFilename = getInitialDocumentFilename();
+  }
 
-  // If user wants Save As, drop the existing handle so picker appears
-  const handleToUse = forceSaveAs ? null : currentDraftHandle;
+  const text = serializeDocument(currentDocument);
+  const handleToUse = forceSaveAs ? null : currentDocumentHandle;
 
-  // Try real overwrite via FS Access API
   try {
-    const result = await saveDraftBytes({
-      bytes,
-      suggestedName: currentDraftFilename,
+    const result = await saveDocumentFile({
+      text,
+      suggestedName: currentDocumentFilename,
       existingHandle: handleToUse,
     });
 
     if (result.ok) {
-  currentDraftHandle = result.handle;
-  if (result.name) currentDraftFilename = result.name;
-
-  updateDraftFooterName();   
+  currentDocumentHandle = result.handle;
+  currentDocumentFilename = result.fileName;
+  updateDocumentFooterName();
+  clearRecoveryAfterSuccessfulSave();
   return;
 }
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      return;
+    }
 
-  } catch (err) {
-    console.warn("FS draft save failed, falling back to download:", err);
+    console.warn(
+      'Browser document save failed; using download fallback:',
+      error
+    );
   }
 
-  updateDraftFooterName();
-
-  // Fallback: old behavior (cannot overwrite, but preserves name)
   downloadBlob({
-    bytes,
-    mime: "application/json;charset=utf-8",
-    filename: currentDraftFilename,
-  });
+  bytes: text,
+  mime: 'application/json;charset=utf-8',
+  filename: currentDocumentFilename,
+});
+
+updateDocumentFooterName();
+clearRecoveryAfterSuccessfulSave();
 }
 
-  function ensureHiddenDraftInput() {
-    let input = document.getElementById('draftFileInput');
-    if (input) return input;
+function captureRecoverySnapshot() {
+  recoveryTimer = null;
 
-    input = document.createElement('input');
-    input.id = 'draftFileInput';
-    input.type = 'file';
-    input.accept = '.drft,application/json';
-    input.style.display = 'none';
-    document.body.appendChild(input);
+  if (!lexicalEditor) {
+    return;
+  }
 
-    input.addEventListener('change', async () => {
-      const file = input.files && input.files[0];
-      input.value = ''; // allow re-opening same file later
-      if (!file) return;
+  let editorState;
 
-      try {
-  const text = await file.text();
-  await openDraftFromText(text, { handle: null, fileName: file.name });
-} catch (err) {
-  console.error("Open draft failed:", err);
-  alert(`Could not open draft. ${err?.message || "Unknown error"}`);
+  try {
+    editorState = lexicalEditor.getEditorState().toJSON();
+  } catch (error) {
+    console.error(
+      'Recovery could not serialize the editor state:',
+      error
+    );
+    return;
+  }
+
+  const cleanHtml = docState.getCleanHtml() || '';
+  const now = new Date().toISOString();
+
+  const recoveryDocument = {
+    ...currentDocument,
+    document: {
+      ...currentDocument.document,
+      title: extractTitleFromHtml(cleanHtml),
+      updatedAt: now,
+    },
+    editorState,
+  };
+
+  const result = writeRecoverySnapshot(recoveryDocument);
+
+  if (!result.ok) {
+    console.warn(result.message);
+    return;
+  }
+
+  currentDocument = recoveryDocument;
 }
-    });
 
+function scheduleRecoverySnapshot() {
+  if (recoveryTimer !== null) {
+    clearTimeout(recoveryTimer);
+  }
+
+  recoveryTimer = window.setTimeout(
+    captureRecoverySnapshot,
+    RECOVERY_DEBOUNCE_MS
+  );
+}
+
+function flushPendingRecoverySnapshot() {
+  if (recoveryTimer === null) {
+    return;
+  }
+
+  clearTimeout(recoveryTimer);
+  recoveryTimer = null;
+  captureRecoverySnapshot();
+}
+
+function clearRecoveryAfterSuccessfulSave() {
+  if (recoveryTimer !== null) {
+    clearTimeout(recoveryTimer);
+    recoveryTimer = null;
+  }
+
+  const result = clearRecoverySnapshot();
+
+  if (!result.ok) {
+    console.warn(result.message);
+  }
+}
+
+function loadDocumentFromText(
+  text,
+  { handle = null, fileName = null } = {}
+) {
+  if (!lexicalEditor) {
+    throw new Error('The document editor is not ready yet.');
+  }
+
+  const result = parseDocument(text);
+
+  if (!result.valid) {
+    throw new Error(result.message);
+  }
+
+  let parsedEditorState;
+
+  try {
+    parsedEditorState = lexicalEditor.parseEditorState(
+      JSON.stringify(result.document.editorState)
+    );
+  } catch (error) {
+    console.error('Document editor state could not be parsed:', error);
+    throw new Error('The document contains an editor state that TypeSet cannot load.');
+  }
+
+  // Validation and Lexical parsing have succeeded. It is now safe to
+  // replace the current document session and editor content.
+  currentDocument = result.document;
+  currentDocumentFilename =
+    fileName ||
+    `${slugifyFilename(result.document.document.title || 'untitled')}.typeset`;
+  currentDocumentHandle = handle;
+
+  suppressWysiwygToHtml = true;
+
+  try {
+    lexicalEditor.setEditorState(parsedEditorState);
+
+    const exportedHtml = parsedEditorState.read(() =>
+      exportHtmlFromEditor(lexicalEditor)
+    );
+
+    const { html: cleanedHtml } = cleanHTML(exportedHtml);
+    docState.setCleanHtml(cleanedHtml, { from: 'wysiwyg' });
+  } finally {
+    suppressWysiwygToHtml = false;
+  }
+
+  if (wordInput) {
+    wordInput.innerHTML = '';
+  }
+
+  setActiveView('wysiwyg');
+  updateDocumentFooterName();
+}
+
+function closeRecoveryDialog() {
+  if (recoveryDialog?.open) {
+    recoveryDialog.close();
+  }
+
+  pendingRecoverySnapshot = null;
+}
+
+function restorePendingRecovery() {
+  if (!pendingRecoverySnapshot) {
+    return;
+  }
+
+  try {
+    loadDocumentFromText(
+      serializeDocument(pendingRecoverySnapshot.document)
+    );
+
+    // Recovery does not retain a filename or browser file handle.
+    // The next Save must use Save As.
+    currentDocumentFilename = null;
+    currentDocumentHandle = null;
+    updateDocumentFooterName();
+    closeRecoveryDialog();
+  } catch (error) {
+    console.error('Recovery restore failed:', error);
+    closeRecoveryDialog();
+
+    alert(
+      `TypeSet could not restore the recovered document. ` +
+      `The recovery data has been retained.`
+    );
+  }
+}
+
+function discardPendingRecovery() {
+  if (!pendingRecoverySnapshot) {
+    return;
+  }
+
+  const result = clearRecoverySnapshot();
+
+  if (!result.ok) {
+    console.warn(result.message);
+
+    alert(
+      `TypeSet could not discard the recovery data. ` +
+      `It has been retained.`
+    );
+
+    return;
+  }
+
+  closeRecoveryDialog();
+}
+
+function offerRecoveryAtStartup() {
+  const result = readRecoverySnapshot();
+
+  if (result.status === 'none') {
+    return;
+  }
+
+  if (result.status === 'unavailable') {
+    console.warn(result.message);
+    return;
+  }
+
+  if (result.status === 'invalid') {
+    alert(
+      `TypeSet found recovery data that it could not read. ` +
+      `${result.message} The recovery data has been retained.`
+    );
+    return;
+  }
+
+  pendingRecoverySnapshot = result.snapshot;
+
+  const recoveredTitle =
+    result.snapshot.document.document.title || 'Untitled';
+
+  const capturedAt = new Date(
+    result.snapshot.capturedAt
+  ).toLocaleString();
+
+  recoveryDialogMessage.textContent =
+    `TypeSet found unsaved work for "${recoveredTitle}" ` +
+    `from ${capturedAt}. Restore it or permanently discard it.`;
+
+  recoveryDialog.showModal();
+}
+
+function ensureHiddenDocumentInput() {
+  let input = document.getElementById('documentFileInput');
+
+  if (input) {
     return input;
   }
 
-  async function openDraftPicker() {
-  // Try FS Access API first (gives us a handle we can overwrite later)
-  try {
-    const opened = await openDraftFile();
-    if (opened.ok) {
-      await openDraftFromText(opened.text, { handle: opened.handle, fileName: opened.fileName });
+  input = document.createElement('input');
+  input.id = 'documentFileInput';
+  input.type = 'file';
+  input.accept = '.typeset,application/json';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    input.value = '';
+
+    if (!file) {
       return;
     }
-  } catch (e) {
-    // ignore and fall back
-  }
 
-  // Fallback
-  ensureHiddenDraftInput().click();
+    try {
+      const text = await file.text();
+
+      loadDocumentFromText(text, {
+        handle: null,
+        fileName: file.name,
+      });
+    } catch (error) {
+      console.error('Open document failed:', error);
+      alert(`Could not open document. ${error?.message || 'Unknown error'}`);
+    }
+  });
+
+  return input;
 }
 
-async function openDraftFromText(text, { handle = null, fileName = null } = {}) {
-  const draft = JSON.parse(text);
+async function openDocumentPicker() {
+  let opened;
 
-  if (draft?.schema !== "ts-draft") throw new Error("Not a ts draft file.");
-  if (typeof draft?.schemaVersion !== "number") throw new Error("Draft schemaVersion missing.");
-  if (draft.schemaVersion !== 1) throw new Error(`Unsupported draft schemaVersion: ${draft.schemaVersion}`);
-
-  const cleanHtml = draft?.state?.cleanHtml ?? "";
-  const lexical = draft?.state?.lexical ?? null;
-
-  // Restore identity + session info
-  currentDraftId = draft?.meta?.id || null;
-  currentDraftFilename = draft?.meta?.filename || fileName || null;
-  currentDraftCreatedAt = draft?.createdAt || null;
-  currentDraftHandle = handle;
-
-  if (!currentDraftFilename) currentDraftFilename = getInitialDraftFilename();
-  if (!currentDraftId) currentDraftId = makeDraftId();
-
-  // Restore HTML first
-  docState.setCleanHtml(cleanHtml, { from: "draft" });
-  if (htmlEditor) htmlEditor.value = cleanHtml;
-
-  // Restore Lexical if present
-  if (lexicalEditor && lexical) {
-    suppressWysiwygToHtml = true;
-    try {
-      const parsed = lexicalEditor.parseEditorState(JSON.stringify(lexical));
-      lexicalEditor.setEditorState(parsed);
-    } finally {
-      setTimeout(() => (suppressWysiwygToHtml = false), 0);
+  try {
+    opened = await openDocumentFile();
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      return;
     }
+
+    console.warn(
+      'Browser document picker failed; using file-input fallback:',
+      error
+    );
   }
 
-  setActiveView("wysiwyg");
-  updateDraftFooterName();
+  if (opened?.ok) {
+    try {
+      loadDocumentFromText(opened.text, {
+        handle: opened.handle,
+        fileName: opened.fileName,
+      });
+    } catch (error) {
+      console.error('Open document failed:', error);
+      alert(`Could not open document. ${error?.message || 'Unknown error'}`);
+    }
 
+    return;
+  }
+
+  ensureHiddenDocumentInput().click();
 }
 
 
@@ -582,6 +809,32 @@ async function openDraftFromText(text, { handle = null, fileName = null } = {}) 
   // ============================================================
   // 7) EVENT WIRING (one place, after all declarations)
   // ============================================================
+
+  window.addEventListener('pagehide', flushPendingRecoverySnapshot);
+  btnRecoveryRestore?.addEventListener(
+  'click',
+  restorePendingRecovery
+);
+
+btnRecoveryDiscard?.addEventListener(
+  'click',
+  discardPendingRecovery
+);
+
+// Recovery requires an explicit Restore or Discard choice.
+// Escape must not silently dismiss the decision.
+recoveryDialog?.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  event.stopImmediatePropagation();
+});
+
+recoveryDialog?.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+});
+
   // Theme
   if (btnThemeToggle) {
     btnThemeToggle.addEventListener('click', () => {
@@ -630,14 +883,13 @@ menuNew?.addEventListener('click', () => {
   if (htmlEditor) htmlEditor.value = '';
   clearWysiwygToEmpty();
 
-  // 3) Reset draft session
-  currentDraftFilename = null;
-  currentDraftCreatedAt = null;
-  currentDraftId = null;
-  currentDraftHandle = null;
+  // 3) Start a new TypeSet document session
+currentDocument = createDocument();
+currentDocumentFilename = null;
+currentDocumentHandle = null;
 
   // 4) UI refresh
-  updateDraftFooterName();
+  updateDocumentFooterName();
   setActiveView('wysiwyg');
 
   menuPanel?.classList.add('hidden');
@@ -651,7 +903,7 @@ menuNew?.addEventListener('click', () => {
   try {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.html,.htm,.drft';
+    input.accept = '.html,.htm';
     input.style.display = 'none';
     document.body.appendChild(input);
 
@@ -660,17 +912,6 @@ menuNew?.addEventListener('click', () => {
       input.remove();
       if (!file) return;
 
-      const name = (file.name || '').toLowerCase();
-
-      // Route .drft to existing draft loader if you want Import to handle drafts too
-      if (name.endsWith('.drft')) {
-        // Option A: reuse your existing picker flow (recommended if you already have a solid loader)
-        // openDraftFromFile(file);
-
-        // Option B: if you only have openDraftPicker(), keep Import as HTML-only for now:
-        alert('Use “Open draft” for .drft files (for now).');
-        return;
-      }
 
       const text = await file.text();
 
@@ -702,24 +943,24 @@ setActiveView('wysiwyg');
   }
 });
 
-  // Menu: Save draft (delegates to btnSave)
-    menuSave?.addEventListener('click', () => {
-    saveDraftFile();
-    menuPanel?.classList.add('hidden');
-  });
+  // Menu: Save TypeSet document
+menuSave?.addEventListener('click', async () => {
+  await saveDocument();
+  menuPanel?.classList.add('hidden');
+});
 
-  menuSaveAs?.addEventListener("click", async () => {
-  await saveDraftFile({ forceSaveAs: true });
-  menuPanel?.classList.add("hidden");
+menuSaveAs?.addEventListener('click', async () => {
+  await saveDocument({ forceSaveAs: true });
+  menuPanel?.classList.add('hidden');
 });
 
 
 
-  // Menu: Open draft
-  menuOpenDraft?.addEventListener('click', () => {
-    openDraftPicker();
-    menuPanel?.classList.add('hidden');
-  });
+  // Menu: Open TypeSet document
+menuOpenDocument?.addEventListener('click', async () => {
+  await openDocumentPicker();
+  menuPanel?.classList.add('hidden');
+});
 
   // Menu: Publish HTML
     menuExportHtml?.addEventListener('click', () => {
@@ -740,15 +981,46 @@ setActiveView('wysiwyg');
   // ============================================================
   docState.setCleanHtml('', { from: 'system' });
   setActiveView('wysiwyg');
-  updateDraftFooterName();
+  updateDocumentFooterName();
 
   // ============================================================
   // 9) MOUNT LEXICAL (last)
   // ============================================================
   mountWysiwygEditor({
     onEditorReady: (editor) => {
-      lexicalEditor = editor;
-    },
+  lexicalEditor = editor;
+
+  // Wait until initial editor setup finishes so the automatically
+  // created empty paragraph is not treated as unsaved author work.
+  window.setTimeout(() => {
+    unregisterRecoveryListener?.();
+
+    unregisterRecoveryListener = editor.registerUpdateListener(({ tags }) => {
+  if (
+    suppressWysiwygToHtml ||
+    tags.has('typeset-initialization')
+  ) {
+    return;
+  }
+
+  scheduleRecoverySnapshot();
+});
+
+unregisterRecoveryListener = editor.registerUpdateListener(({ tags }) => {
+  if (
+    suppressWysiwygToHtml ||
+    tags.has('typeset-initialization')
+  ) {
+    return;
+  }
+
+  scheduleRecoverySnapshot();
+});
+
+offerRecoveryAtStartup();
+
+  }, 0);
+},
     onHtmlChange: (html) => {
   if (suppressWysiwygToHtml) return;
 

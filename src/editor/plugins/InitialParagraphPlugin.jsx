@@ -7,16 +7,21 @@ export default function InitialParagraphPlugin() {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
-    editor.update(() => {
-      const root = $getRoot();
+        editor.update(
+      () => {
+        const root = $getRoot();
 
-      // If the editor is completely empty, create a paragraph and select it
-      if (root.getFirstChild() === null) {
-        const paragraph = $createParagraphNode();
-        root.append(paragraph);
-        paragraph.select();
+        // If the editor is completely empty, create a paragraph and select it
+        if (root.getFirstChild() === null) {
+          const paragraph = $createParagraphNode();
+          root.append(paragraph);
+          paragraph.select();
+        }
+      },
+      {
+        tag: 'typeset-initialization',
       }
-    });
+    );
   }, [editor]);
 
   return null;

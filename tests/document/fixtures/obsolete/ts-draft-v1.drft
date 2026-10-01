@@ -1,0 +1,20 @@
+{
+  "schema": "ts-draft",
+  "schemaVersion": 1,
+  "createdAt": "2026-01-01T12:00:00.000Z",
+  "updatedAt": "2026-01-01T12:30:00.000Z",
+  "state": {
+    "cleanHtml": "<p>Legacy content</p>",
+    "lexical": {
+      "root": {
+        "children": []
+      }
+    }
+  },
+  "meta": {
+    "id": "legacy-document",
+    "activeView": "wysiwyg",
+    "filename": "legacy.drft",
+    "title": "Legacy document"
+  }
+}
