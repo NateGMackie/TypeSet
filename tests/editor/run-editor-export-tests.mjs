@@ -1,6 +1,6 @@
 import { JSDOM } from 'jsdom';
 import { createEditor } from 'lexical';
-
+import { importHtmlToEditor } from '../../src/editor/import/importHtmlToEditor.js';
 import {
   cleanAndNormalizeExportHtml,
   exportHtmlFromEditor,
@@ -28,9 +28,9 @@ function installDomShim() {
 
 let failed = 0;
 
-function test(name, callback) {
+async function test(name, callback) {
   try {
-    callback();
+    await callback();
     console.log(`✅ ${name}`);
   } catch (error) {
     failed += 1;
@@ -49,7 +49,7 @@ function assertEqual(actual, expected) {
 
 installDomShim();
 
-test('export normalization removes editor-only strong attributes', () => {
+await test('export normalization removes editor-only strong attributes', () => {
   const actualHtml = cleanAndNormalizeExportHtml(
     '<p><strong class="ts-text-bold" ' +
       'style="white-space: pre-wrap;">Bold text</strong></p>'
@@ -61,7 +61,7 @@ test('export normalization removes editor-only strong attributes', () => {
   );
 });
 
-test('serialized Lexical state exports through the production pipeline', () => {
+await test('serialized Lexical state exports through the production pipeline', () => {
   const editor = createEditor({
     ...editorConfig,
     namespace: 'typeset-editor-export-test',
@@ -146,9 +146,35 @@ editorState.read(() => {
   );
 });
 
-if (failed > 0) {
-  console.error(`\nFAILED: ${failed} editor export test(s)`);
-  process.exit(1);
-}
+await test('canonical HTML survives a Lexical round trip', async () => {
+  const editor = createEditor({
+    ...editorConfig,
+    namespace: 'typeset-editor-round-trip-test',
+  });
+
+  const inputHtml =
+    '<h1>Round-trip heading</h1>' +
+    '<p><strong>Bold</strong> and <em>italic</em> text.</p>';
+
+  const nextUpdate = new Promise((resolve) => {
+    const unregister = editor.registerUpdateListener(
+      ({ editorState }) => {
+        unregister();
+        resolve(editorState);
+      }
+    );
+  });
+
+  importHtmlToEditor(editor, inputHtml);
+
+  const editorState = await nextUpdate;
+  let actualHtml = '';
+
+  editorState.read(() => {
+    actualHtml = exportHtmlFromEditor(editor);
+  });
+
+  assertEqual(actualHtml, inputHtml);
+});
 
 console.log('\nALL PASSED: editor export tests');
