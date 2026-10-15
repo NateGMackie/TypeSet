@@ -330,6 +330,76 @@ function normalizeNestedListStructure(doc) {
   setAttrsInAlphaOrder(span, attrs);
 }
 
+function normalizeListItemPrimaryParagraphs(doc) {
+  const blockTags = new Set([
+    'p',
+    'ul',
+    'ol',
+    'div',
+    'blockquote',
+    'pre',
+    'table',
+    'hr',
+    'img',
+    'h1',
+    'h2',
+    'h3',
+  ]);
+
+  doc.querySelectorAll('li').forEach((listItem) => {
+    const children = Array.from(listItem.childNodes);
+
+    const firstMeaningfulChild = children.find((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return (node.nodeValue || '').trim() !== '';
+      }
+
+      return node.nodeType === Node.ELEMENT_NODE;
+    });
+
+    // Preserve an existing canonical primary paragraph.
+    if (
+      firstMeaningfulChild?.nodeType === Node.ELEMENT_NODE &&
+      firstMeaningfulChild.tagName.toLowerCase() === 'p'
+    ) {
+      return;
+    }
+
+    const primaryNodes = [];
+
+    for (const node of children) {
+      if (
+        node.nodeType === Node.ELEMENT_NODE &&
+        blockTags.has(node.tagName.toLowerCase())
+      ) {
+        break;
+      }
+
+      primaryNodes.push(node);
+    }
+
+    const hasPrimaryContent = primaryNodes.some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return (node.nodeValue || '').trim() !== '';
+      }
+
+      return node.nodeType === Node.ELEMENT_NODE;
+    });
+
+    if (!hasPrimaryContent) {
+      return;
+    }
+
+    const paragraph = doc.createElement('p');
+
+    primaryNodes.forEach((node) => {
+      paragraph.appendChild(node);
+    });
+
+    listItem.insertBefore(paragraph, listItem.firstChild);
+  });
+}
+
 
   function normalizeImg(img) {
     const src = img.getAttribute("src");
@@ -596,6 +666,7 @@ Array.from(doc.body.childNodes).forEach(sanitizeNode);
 // the parent item. Attach that nested list to the preceding <li>
 // to produce conventional semantic HTML.
 normalizeNestedListStructure(doc);
+normalizeListItemPrimaryParagraphs(doc);
 
 // Remove empty formatting elements left behind by Word or other imports.
 removeEmptyInlineFormatting(doc);

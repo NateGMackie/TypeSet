@@ -184,14 +184,15 @@ await test('nested lists survive a Lexical round trip', async () => {
   });
 
   const inputHtml =
-    '<ul>' +
-      '<li>Parent item' +
-        '<ul>' +
-          '<li>Child item</li>' +
-        '</ul>' +
-      '</li>' +
-      '<li>Sibling item</li>' +
-    '</ul>';
+  '<ul>' +
+    '<li>' +
+      '<p>Parent item</p>' +
+      '<ul>' +
+        '<li><p>Child item</p></li>' +
+      '</ul>' +
+    '</li>' +
+    '<li><p>Sibling item</p></li>' +
+  '</ul>';
 
   const nextUpdate = new Promise((resolve) => {
     const unregister = editor.registerUpdateListener(
