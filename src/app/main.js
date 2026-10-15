@@ -873,8 +873,67 @@ function clearWysiwygToEmpty() {
   }
 }
 
+function confirmDiscardRecoveryForNewDocument() {
+  // Capture edits that are still inside the two-second debounce window.
+  flushPendingRecoverySnapshot();
+
+  const recovery = readRecoverySnapshot();
+
+  if (recovery.status === 'none') {
+    return true;
+  }
+
+  if (recovery.status === 'unavailable') {
+    console.warn(recovery.message);
+
+    alert(
+      'TypeSet could not verify whether unsaved recovery data exists. ' +
+      'The new document was not created.'
+    );
+
+    return false;
+  }
+
+  const message =
+    recovery.status === 'valid'
+      ? `Starting a new document will permanently discard unsaved ` +
+        `work for "${recovery.snapshot.document.document.title || 'Untitled'}".`
+      : `Starting a new document will permanently discard recovery ` +
+        `data that TypeSet could not read.`;
+
+  const shouldContinue = window.confirm(
+    `${message}\n\n` +
+    `Select OK to continue or Cancel to return to the current document.`
+  );
+
+  if (!shouldContinue) {
+    return false;
+  }
+
+  const clearResult = clearRecoverySnapshot();
+
+  if (!clearResult.ok) {
+    console.warn(clearResult.message);
+
+    alert(
+      'TypeSet could not discard the recovery data. ' +
+      'The new document was not created.'
+    );
+
+    return false;
+  }
+
+  return true;
+}
+
 // Menu: New
 menuNew?.addEventListener('click', () => {
+  menuPanel?.classList.add('hidden');
+
+  if (!confirmDiscardRecoveryForNewDocument()) {
+    return;
+  }
+
   // 1) Clear canonical HTML
   docState.setCleanHtml('', { from: 'system' });
 
@@ -884,17 +943,14 @@ menuNew?.addEventListener('click', () => {
   clearWysiwygToEmpty();
 
   // 3) Start a new TypeSet document session
-currentDocument = createDocument();
-currentDocumentFilename = null;
-currentDocumentHandle = null;
+  currentDocument = createDocument();
+  currentDocumentFilename = null;
+  currentDocumentHandle = null;
 
   // 4) UI refresh
   updateDocumentFooterName();
   setActiveView('wysiwyg');
-
-  menuPanel?.classList.add('hidden');
 });
-
 
 
 
@@ -994,17 +1050,6 @@ menuOpenDocument?.addEventListener('click', async () => {
   // created empty paragraph is not treated as unsaved author work.
   window.setTimeout(() => {
     unregisterRecoveryListener?.();
-
-    unregisterRecoveryListener = editor.registerUpdateListener(({ tags }) => {
-  if (
-    suppressWysiwygToHtml ||
-    tags.has('typeset-initialization')
-  ) {
-    return;
-  }
-
-  scheduleRecoverySnapshot();
-});
 
 unregisterRecoveryListener = editor.registerUpdateListener(({ tags }) => {
   if (
