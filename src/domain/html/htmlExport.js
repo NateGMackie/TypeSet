@@ -495,10 +495,13 @@ function normalizeNestedListStructure(doc) {
     const tag = node.tagName.toLowerCase();
 
     if (!ALLOWED_TAGS.has(tag)) {
-      // Drop the element but keep its children/text
-      unwrapElement(node);
-      return;
-    }
+  // Sanitize the children before removing their unsupported wrapper.
+  // Otherwise, newly exposed descendants can retain editor-only
+  // attributes that were never visited.
+  Array.from(node.childNodes).forEach(sanitizeNode);
+  unwrapElement(node);
+  return;
+}
 // --- unwrap Word "pre-wrap" spans BEFORE we strip style attributes ---
 // Fixture: 007_inline_normalization/061_strip_pre_wrap_span
 if (tag === "span") {
