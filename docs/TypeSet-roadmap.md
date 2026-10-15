@@ -380,17 +380,18 @@ export contract without relying on accidental DOM structure.
 ## **2.3 Correct list structure**
 
 **Priority:** Critical\
-**Status:** ⚠️ Requirement decided; audited implementation enforces the
-opposite
+**Status:** 🟡 Implementation underway; canonical primary paragraphs and
+nested-list round trips are implemented and verified
 
 **Outcome:** Lists support procedural content, nested lists, and
 callouts without structural drift.
 
--   ✅ Adopt paragraph-based list items as the internal and canonical
-    model for procedural content: `<li><p>…</p></li>`.\
--   ⬜ Preserve the primary paragraph inside each list item during
-    import and export.\
--   ⬜ Treat each list item as a block container rather than a
+-   ✅ Adopt paragraph-based list items as the canonical exported model
+    for procedural content: `<li><p>…</p></li>`. Lexical retains its
+    native direct-child representation internally.\
+-   ✅ Preserve the primary paragraph across HTML-to-Lexical-to-HTML
+    round trips by reconstructing it during canonical export.\
+-   ✅ Treat each canonical list item as a block container rather than a
     direct-text container.\
 -   ⬜ Allow a primary paragraph followed by additional blocks,
     including:
@@ -398,7 +399,7 @@ callouts without structural drift.
     -   Callouts\
     -   Horizontal rules\
     -   Additional paragraphs when allowed by the content model\
--   ⬜ Fix nested-list export so a nested `<ul>` or `<ol>` belongs to
+-   ✅ Fix nested-list export so a nested `<ul>` or `<ol>` belongs to
     the preceding `<li>` rather than appearing as an invalid sibling.\
 -   ⬜ Fix callout behavior inside list items.\
 -   ⚠️ Remove or replace the audited `unwrapParasInListItems()` behavior
@@ -407,9 +408,11 @@ callouts without structural drift.
     structure.\
 -   ⬜ Add list fixtures for simple, nested, and complex procedural
     items.\
--   ❓ Decide whether canonical export should **always** preserve the
-    primary `<p>` or flatten a simple one-paragraph item to
-    `<li>Text</li>`.
+-   ✅ Canonical export always preserves the primary `<p>` rather than
+    flattening a simple one-paragraph item to `<li>Text</li>`.\
+-   ⬜ Define and verify how Lexical line breaks, images, callouts,
+    horizontal rules, and any future additional paragraphs are grouped
+    within canonical list items.
 
 **Recommendation:** Preserve `<p>` consistently. The small increase in
 markup buys a stable content model and avoids special-case behavior when
