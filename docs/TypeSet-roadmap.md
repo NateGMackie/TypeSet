@@ -237,10 +237,9 @@ before structural editor changes begin.
     while retaining `package-lock.json`.\
 -   ✅ Approve and document the TypeSet-owned Version 1 document schema
     in `docs/contracts/document-schema.md`.\
--   🟡 Define validation and recovery behavior. Runtime document
-    validation is implemented. Legacy `.drft` migration was explicitly
-    rejected as unnecessary; recovery behavior for supported `.typeset`
-    documents remains.\
+-   ✅ Define validation and recovery behavior. Runtime document
+    validation, obsolete `.drft` rejection, and browser-local recovery
+    behavior are implemented and verified.\
 -   ✅ Remove tracked dependencies while retaining `package-lock.json`.\
 -   ✅ Establish clean `npm ci`, type-check, test, and build execution
     in CI.\
@@ -340,7 +339,7 @@ recorded - export-suite result recorded - Word-suite baseline recorded
 | B2 | Implement document creation and validation | 🟢 Complete — document creation and validation implemented and verified |
 | B3 | Legacy draft handling | ✅ Decision complete — reject obsolete `.drft` formats; no migration |
 | B4 | Implement save/open through the new document boundary | ✅ Complete — `.typeset` Save, Save As, and Open operate through the validated document and browser file-access boundaries |
-| B5 | Add recovery behavior for supported TypeSet documents | ✅ Add document round-trip, schema-version, rejection, Save/Open, and recovery coverage. Automated document, persistence, and recovery tests pass; Save/Open and recovery behavior are manually verified in Chrome.|
+| B5 | Add recovery behavior for supported TypeSet documents | ✅ Complete — recovery capture, page-close flushing, startup Restore/Discard, validation, Save clearing, New/Open protection, and explicit invalid-data discard implemented and verified |
 | B6 | Add document and persistence tests | ✅ Complete — document validation, creation, and persistence round-trip coverage implemented and verified |
   
   -----------------------------------------------------------------------
@@ -905,7 +904,7 @@ layer rather than implement features separately.
 
 ## **6.1 Saving and recovery**
 
-**Status:** 🟡 Version 1 document Save/Open complete; recovery remains
+**Status:** ✅ Version 1 document Save/Open and recovery complete
 
 -   ✅ Save TypeSet document identity, metadata, and serialized Lexical
     state in the Version 1 JSON envelope.\
@@ -915,10 +914,10 @@ layer rather than implement features separately.
     canonical HTML after opening.\
 -   ✅ Replace the historical dual-representation draft path with the
     approved TypeSet document boundary.\
--   🟡 Add document round-trip, schema-version, rejection, Save/Open, and
-    recovery tests. Document validation and persistence round-trip
-    coverage pass; Save/Open is manually verified in Chrome; recovery
-    coverage remains.\
+-   ✅ Add document round-trip, schema-version, rejection, Save/Open, and
+    recovery coverage. Automated document, persistence, and recovery
+    tests pass; Save/Open and recovery behavior are manually verified in
+    Chrome.\
 -   ⬜ Add backups or version history.\
 -   ⬜ Preserve last successfully applied HTML when Apply fails.\
 -   ✅ Prefer recovering user content over destructive rejection.\
