@@ -33,6 +33,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const htmlEditor = $('htmlEditor');
   const wysiwyg = $('wysiwygEditor');
   const recoveryDialog = $('recoveryDialog');
+const recoveryDialogTitle = $('recoveryDialogTitle');
 const recoveryDialogMessage = $('recoveryDialogMessage');
 const btnRecoveryRestore = $('btnRecoveryRestore');
 const btnRecoveryDiscard = $('btnRecoveryDiscard');
@@ -629,9 +630,6 @@ function restorePendingRecovery() {
 }
 
 function discardPendingRecovery() {
-  if (!pendingRecoverySnapshot) {
-    return;
-  }
 
   const result = clearRecoverySnapshot();
 
@@ -662,14 +660,28 @@ function offerRecoveryAtStartup() {
   }
 
   if (result.status === 'invalid') {
-    alert(
-      `TypeSet found recovery data that it could not read. ` +
-      `${result.message} The recovery data has been retained.`
-    );
-    return;
+  pendingRecoverySnapshot = null;
+
+  if (recoveryDialogTitle) {
+    recoveryDialogTitle.textContent =
+      'Recovery data could not be read';
   }
 
+  recoveryDialogMessage.textContent =
+    `TypeSet found recovery data that it could not restore. ` +
+    `${result.message} Discard it to continue.`;
+
+  btnRecoveryRestore?.classList.add('hidden');
+  recoveryDialog.showModal();
+  return;
+}
+
   pendingRecoverySnapshot = result.snapshot;
+  if (recoveryDialogTitle) {
+  recoveryDialogTitle.textContent = 'Unsaved work found';
+}
+
+btnRecoveryRestore?.classList.remove('hidden');
 
   const recoveredTitle =
     result.snapshot.document.document.title || 'Untitled';
