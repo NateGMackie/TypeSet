@@ -522,7 +522,11 @@ function clearRecoveryAfterSuccessfulSave() {
 
 function loadDocumentFromText(
   text,
-  { handle = null, fileName = null } = {}
+  {
+    handle = null,
+    fileName = null,
+    discardRecoveryOnSuccess = false,
+  } = {}
 ) {
   if (!lexicalEditor) {
     throw new Error('The document editor is not ready yet.');
@@ -544,6 +548,19 @@ function loadDocumentFromText(
     console.error('Document editor state could not be parsed:', error);
     throw new Error('The document contains an editor state that TypeSet cannot load.');
   }
+
+if (discardRecoveryOnSuccess) {
+  const clearResult = clearRecoverySnapshot();
+
+  if (!clearResult.ok) {
+    console.warn(clearResult.message);
+
+    throw new Error(
+      'TypeSet could not discard the existing recovery data, ' +
+      'so the current document was not replaced.'
+    );
+  }
+}
 
   // Validation and Lexical parsing have succeeded. It is now safe to
   // replace the current document session and editor content.
@@ -668,45 +685,61 @@ function offerRecoveryAtStartup() {
   recoveryDialog.showModal();
 }
 
-function ensureHiddenDocumentInput() {
+function ensureHiddenDocumentInput(
+  { discardRecoveryOnSuccess = false } = {}
+) {
   let input = document.getElementById('documentFileInput');
 
-  if (input) {
-    return input;
+  if (!input) {
+    input = document.createElement('input');
+    input.id = 'documentFileInput';
+    input.type = 'file';
+    input.accept = '.typeset,application/json';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+
+    input.addEventListener('change', async () => {
+      const shouldDiscardRecovery =
+        input.dataset.discardRecoveryOnSuccess === 'true';
+
+      input.dataset.discardRecoveryOnSuccess = 'false';
+
+      const file = input.files?.[0];
+      input.value = '';
+
+      if (!file) {
+        return;
+      }
+
+      try {
+        const text = await file.text();
+
+        loadDocumentFromText(text, {
+          handle: null,
+          fileName: file.name,
+          discardRecoveryOnSuccess: shouldDiscardRecovery,
+        });
+      } catch (error) {
+        console.error('Open document failed:', error);
+
+        alert(
+          `Could not open document. ` +
+          `${error?.message || 'Unknown error'}`
+        );
+      }
+    });
   }
 
-  input = document.createElement('input');
-  input.id = 'documentFileInput';
-  input.type = 'file';
-  input.accept = '.typeset,application/json';
-  input.style.display = 'none';
-  document.body.appendChild(input);
-
-  input.addEventListener('change', async () => {
-    const file = input.files?.[0];
-    input.value = '';
-
-    if (!file) {
-      return;
-    }
-
-    try {
-      const text = await file.text();
-
-      loadDocumentFromText(text, {
-        handle: null,
-        fileName: file.name,
-      });
-    } catch (error) {
-      console.error('Open document failed:', error);
-      alert(`Could not open document. ${error?.message || 'Unknown error'}`);
-    }
-  });
+  input.dataset.discardRecoveryOnSuccess = String(
+    discardRecoveryOnSuccess
+  );
 
   return input;
 }
 
-async function openDocumentPicker() {
+async function openDocumentPicker(
+  { discardRecoveryOnSuccess = false } = {}
+) {
   let opened;
 
   try {
@@ -727,16 +760,23 @@ async function openDocumentPicker() {
       loadDocumentFromText(opened.text, {
         handle: opened.handle,
         fileName: opened.fileName,
+        discardRecoveryOnSuccess,
       });
     } catch (error) {
       console.error('Open document failed:', error);
-      alert(`Could not open document. ${error?.message || 'Unknown error'}`);
+
+      alert(
+        `Could not open document. ` +
+        `${error?.message || 'Unknown error'}`
+      );
     }
 
     return;
   }
 
-  ensureHiddenDocumentInput().click();
+  ensureHiddenDocumentInput({
+    discardRecoveryOnSuccess,
+  }).click();
 }
 
 
@@ -926,6 +966,51 @@ function confirmDiscardRecoveryForNewDocument() {
   return true;
 }
 
+function confirmDiscardRecoveryForOpenDocument() {
+  // Capture edits that are still inside the two-second debounce window.
+  flushPendingRecoverySnapshot();
+
+  const recovery = readRecoverySnapshot();
+
+  if (recovery.status === 'none') {
+    return {
+      proceed: true,
+      discardRecoveryOnSuccess: false,
+    };
+  }
+
+  if (recovery.status === 'unavailable') {
+    console.warn(recovery.message);
+
+    alert(
+      'TypeSet could not verify whether unsaved recovery data exists. ' +
+      'No document was opened.'
+    );
+
+    return {
+      proceed: false,
+      discardRecoveryOnSuccess: false,
+    };
+  }
+
+  const message =
+    recovery.status === 'valid'
+      ? `Opening another document will permanently discard unsaved ` +
+        `work for "${recovery.snapshot.document.document.title || 'Untitled'}".`
+      : `Opening another document will permanently discard recovery ` +
+        `data that TypeSet could not read.`;
+
+  const shouldContinue = window.confirm(
+    `${message}\n\n` +
+    `Select OK to choose a document or Cancel to return.`
+  );
+
+  return {
+    proceed: shouldContinue,
+    discardRecoveryOnSuccess: shouldContinue,
+  };
+}
+
 // Menu: New
 menuNew?.addEventListener('click', () => {
   menuPanel?.classList.add('hidden');
@@ -1014,8 +1099,18 @@ menuSaveAs?.addEventListener('click', async () => {
 
   // Menu: Open TypeSet document
 menuOpenDocument?.addEventListener('click', async () => {
-  await openDocumentPicker();
   menuPanel?.classList.add('hidden');
+
+  const decision = confirmDiscardRecoveryForOpenDocument();
+
+  if (!decision.proceed) {
+    return;
+  }
+
+  await openDocumentPicker({
+    discardRecoveryOnSuccess:
+      decision.discardRecoveryOnSuccess,
+  });
 });
 
   // Menu: Publish HTML
