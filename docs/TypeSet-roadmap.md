@@ -340,7 +340,7 @@ recorded - export-suite result recorded - Word-suite baseline recorded
 | B2 | Implement document creation and validation | 🟢 Complete — document creation and validation implemented and verified |
 | B3 | Legacy draft handling | ✅ Decision complete — reject obsolete `.drft` formats; no migration |
 | B4 | Implement save/open through the new document boundary | ✅ Complete — `.typeset` Save, Save As, and Open operate through the validated document and browser file-access boundaries |
-| B5 | Add recovery behavior for supported TypeSet documents | 🟡 In progress — recovery capture, page-close flushing, startup restoration, validation, and Save clearing implemented; explicit discard and New/Open protection remain |
+| B5 | Add recovery behavior for supported TypeSet documents | ✅ Add document round-trip, schema-version, rejection, Save/Open, and recovery coverage. Automated document, persistence, and recovery tests pass; Save/Open and recovery behavior are manually verified in Chrome.|
 | B6 | Add document and persistence tests | ✅ Complete — document validation, creation, and persistence round-trip coverage implemented and verified |
   
   -----------------------------------------------------------------------
@@ -1717,15 +1717,20 @@ baseline**.
 The repository baseline, TypeScript foundation, Version 1 document
 contract, document creation and validation, persistence boundary, browser
 file access, and Save/Open integration are established and verified.
-Stage 2.1.B units B1–B4 and B6 are complete.
 
-The B5 recovery contract is approved. Release 0 will retain one latest
-browser-local recovery snapshot, capture it after a two-second debounce,
-offer Restore or Discard at startup, and protect unsaved work during New
-and Open transitions.
+Stage 2.1.B is complete. The Version 1 document schema, document creation
+and validation, obsolete-format rejection, persistence boundary, browser
+file access, Save/Open integration, recovery behavior, and supporting
+tests are implemented and verified.
 
-The next bounded task is to implement the browser recovery-storage
-boundary without connecting it to the editor.
+Release 0 retains one latest browser-local recovery snapshot, captures it
+after a two-second debounce and during page close, offers explicit Restore
+or Discard behavior at startup, protects unsaved work during New and Open
+transitions, clears recovery after successful Save, and provides an
+explicit discard path for invalid recovery data.
+
+The next bounded task is to review the remaining Release 0 work and select
+the next incomplete architectural unit.
 
 After Release 0 is implemented and verified, begin **Release 1 --- Lists
 and headings** as the first structural content-model release.
