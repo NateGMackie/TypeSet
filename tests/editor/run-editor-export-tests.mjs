@@ -177,4 +177,46 @@ await test('canonical HTML survives a Lexical round trip', async () => {
   assertEqual(actualHtml, inputHtml);
 });
 
+await test('nested lists survive a Lexical round trip', async () => {
+  const editor = createEditor({
+    ...editorConfig,
+    namespace: 'typeset-editor-list-round-trip-test',
+  });
+
+  const inputHtml =
+    '<ul>' +
+      '<li>Parent item' +
+        '<ul>' +
+          '<li>Child item</li>' +
+        '</ul>' +
+      '</li>' +
+      '<li>Sibling item</li>' +
+    '</ul>';
+
+  const nextUpdate = new Promise((resolve) => {
+    const unregister = editor.registerUpdateListener(
+      ({ editorState }) => {
+        unregister();
+        resolve(editorState);
+      }
+    );
+  });
+
+  importHtmlToEditor(editor, inputHtml);
+
+  const editorState = await nextUpdate;
+  let actualHtml = '';
+
+  editorState.read(() => {
+    actualHtml = exportHtmlFromEditor(editor);
+  });
+
+  assertEqual(actualHtml, inputHtml);
+});
+
+if (failed > 0) {
+  console.error(`\nFAILED: ${failed} editor export test(s)`);
+  process.exit(1);
+}
+
 console.log('\nALL PASSED: editor export tests');
