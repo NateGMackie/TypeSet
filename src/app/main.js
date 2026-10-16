@@ -577,11 +577,10 @@ if (discardRecoveryOnSuccess) {
     lexicalEditor.setEditorState(parsedEditorState);
 
     const exportedHtml = parsedEditorState.read(() =>
-      exportHtmlFromEditor(lexicalEditor)
-    );
+  exportHtmlFromEditor(lexicalEditor)
+);
 
-    const { html: cleanedHtml } = cleanHTML(exportedHtml);
-    docState.setCleanHtml(cleanedHtml, { from: 'wysiwyg' });
+docState.setCleanHtml(exportedHtml, { from: 'wysiwyg' });
   } finally {
     suppressWysiwygToHtml = false;
   }
@@ -1173,11 +1172,10 @@ offerRecoveryAtStartup();
 
   }, 0);
 },
-    onHtmlChange: (html) => {
+  onHtmlChange: (html) => {
   if (suppressWysiwygToHtml) return;
 
-  const { html: cleaned } = cleanHTML(html);
-  docState.setCleanHtml(cleaned, { from: 'wysiwyg' });
+  docState.setCleanHtml(html, { from: 'wysiwyg' });
 },
 
   });

@@ -215,6 +215,40 @@ await test('nested lists survive a Lexical round trip', async () => {
   assertEqual(actualHtml, inputHtml);
 });
 
+await test('list-item line breaks remain inside the primary paragraph', async () => {
+  const editor = createEditor({
+    ...editorConfig,
+    namespace: 'typeset-editor-list-line-break-test',
+  });
+
+  const inputHtml =
+    '<ul>' +
+      '<li>' +
+        '<p>First line<br>Second line</p>' +
+      '</li>' +
+    '</ul>';
+
+  const nextUpdate = new Promise((resolve) => {
+    const unregister = editor.registerUpdateListener(
+      ({ editorState }) => {
+        unregister();
+        resolve(editorState);
+      }
+    );
+  });
+
+  importHtmlToEditor(editor, inputHtml);
+
+  const editorState = await nextUpdate;
+  let actualHtml = '';
+
+  editorState.read(() => {
+    actualHtml = exportHtmlFromEditor(editor);
+  });
+
+  assertEqual(actualHtml, inputHtml);
+});
+
 if (failed > 0) {
   console.error(`\nFAILED: ${failed} editor export test(s)`);
   process.exit(1);
